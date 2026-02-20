@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VortexWatch Radar | Live Radar Animation</title>
+    <title>NEXRAD RDA Monitor | Live Radar & Warnings</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -21,9 +20,10 @@
             background: rgba(15, 15, 15, 0.95); padding: 18px; border-radius: 10px;
             border: 1px solid #444; width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
+
         h2 { margin: 0 0 15px 0; font-size: 14px; color: #ffcc00; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .section-label { font-size: 11px; color: #888; text-transform: uppercase; margin: 5px 0 8px 0; display: block; }
-        
+
         .layer-control { 
             display: flex; align-items: center; width: 100%; background: #222; border: 1px solid #444; 
             color: white; padding: 10px; border-radius: 5px; cursor: pointer; font-size: 13px; 
@@ -39,14 +39,12 @@
             font-size: 11px; border: 1px solid #444; line-height: 1.6;
         }
         .warning-tag { display: inline-block; width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; vertical-align: middle; }
-        
+
         .leaflet-popup-content-wrapper { background: #111; color: white; border: 1px solid #444; }
         .leaflet-popup-tip { background: #111; }
     </style>
 </head>
 <body>
-
-<div id="map"></div>
 
 <div class="controls">
     <h2>NWS RDA Monitor</h2>
@@ -55,28 +53,26 @@
     <label class="layer-control"><input type="checkbox" id="check-radar" checked> Composite Radar</label>
     <label class="layer-control"><input type="checkbox" id="check-warn" checked> Active Warnings</label>
     
-    <div id="status">System: Online</div>
+    <div id="status">Source: IEM/NWS Hybrid</div>
 </div>
 
 <div class="legend">
-    <b style="color:#ffcc00">RADAR LEGEND</b><br>
-    <span class="warning-tag" style="background:#FFFF00"></span> Blank / No Precipitation<br>
-    <span class="warning-tag" style="background:#00FF00"></span> Light Rain<br>
-    <span class="warning-tag" style="background:#0000FF"></span> Moderate Rain<br>
-    <span class="warning-tag" style="background:#FFA500"></span> Heavy Rain<br>
-    <span class="warning-tag" style="background:#FF0000"></span> Very Heavy Rain<br>
-    <span class="warning-tag" style="background:#8B00FF"></span> Extreme
+    <b style="color:#ffcc00">WARNING PRIORITY</b><br>
+    <span class="warning-tag" style="background:#FF0000"></span> Tornado (Bright Red)<br>
+    <span class="warning-tag" style="background:#FFA500"></span> Severe T-Storm (Orange)<br>
+    <span class="warning-tag" style="background:#00FF00"></span> Flash Flood (Green)<br>
+    <span class="warning-tag" style="background:#FFFF00"></span> Special Marine (Yellow)
 </div>
+
+<div id="map"></div>
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <!-- TimeDimension JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-timedimension/1.1.0/leaflet.timedimension.min.js"></script>
 
 <script>
-
-    // 1. Initialize Map with TimeDimension
+    // Initialize Map with TimeDimension
     const map = L.map('map', {
         center: [39.8, -98.5],
         zoom: 5,
@@ -95,6 +91,22 @@
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
     L.control.zoom({ position: 'topright' }).addTo(map);
+
+    // RDA Station Data
+    const rdaData = [
+        ["14929","KABR","Aberdeen, SD",45.4558,-98.4131,"1302","20"],
+        ["54766","KENX","Albany, NY",42.5864,-74.0639,"1826","20"],
+        ["13841","KILN","Cincinnati, OH",39.4203,-83.8217,"1056","30"],
+        ["14820","KCLE","Cleveland, OH",41.4131,-81.8597,"763","20"],
+        ["53827","KLVX","Louisville, KY",37.9753,-85.9439,"719","30"],
+        ["04833","KILX","Lincoln, IL",40.1506,-89.3369,"582","30"]
+    ];
+
+    rdaData.forEach(site => {
+        L.circleMarker([site[3], site[4]], {
+            radius: 5, fillColor: "#007bff", color: "#fff", weight: 1, fillOpacity: 0.8
+        }).addTo(map).bindPopup(`<b>${site[1]}</b><br>${site[2]}<br>Elev: ${site[5]}ft`);
+    });
 
     let radarLayer;
     let warningLayer;
@@ -119,39 +131,26 @@
         tdLayer.addTo(map);
     }
 
-    addRadarTimeLayer();
+    function addWarningsLayer() {
+        if (warningLayer) map.removeLayer(warningLayer);
+        if (!document.getElementById('check-warn').checked) return;
 
-    // Warning layer
-    warningLayer = L.geoJson(null, {
-        style: (f) => {
-            const e = f.properties.event || "";
-            if (e.includes('Tornado')) return {color:'red', weight:3, fillOpacity:0.5};
-            if (e.includes('Severe Thunderstorm')) return {color:'orange', weight:2, fillOpacity:0.4};
-            if (e.includes('Flood')) return {color:'green', weight:2, fillOpacity:0.4};
-            if (e.includes('Red Flag')) return {color:'#ff00ff', weight:2, fillOpacity:0.4};
-            if (e.includes('Winter')) return {color:'#00ffff', weight:2, fillOpacity:0.4};
-            return {color:'yellow', weight:1, fillOpacity:0.2};
-        }
-    }).addTo(map);
-
-    async function fetchWarnings() {
-        if (!document.getElementById('check-warn').checked) {
-            warningLayer.clearLayers();
-            return;
-        }
-        try {
-            const res = await fetch('https://api.weather.gov/alerts/active');
-            const data = await res.json();
-            warningLayer.clearLayers().addData(data);
-        } catch (e) { console.error("Warning error"); }
+        warningLayer = L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/uswarnings.cgi?', {
+            layers: 'warnings_loop',
+            format: 'image/png',
+            transparent: true,
+            opacity: 0.8,
+            zIndex: 1000
+        }).addTo(map);
     }
 
     document.getElementById('check-radar').addEventListener('change', addRadarTimeLayer);
-    document.getElementById('check-warn').addEventListener('change', fetchWarnings);
+    document.getElementById('check-warn').addEventListener('change', addWarningsLayer);
 
-    fetchWarnings();
-    setInterval(fetchWarnings, 60000);
+    addRadarTimeLayer();
+    addWarningsLayer();
 
+    setInterval(() => { addRadarTimeLayer(); addWarningsLayer(); }, 120000); // refresh every 2 min
 </script>
 
 </body>
