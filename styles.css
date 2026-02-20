@@ -1,0 +1,129 @@
+/* ===== RESET ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+    background-color: #0f172a; /* dark blue */
+    color: #e2e8f0;
+    line-height: 1.6;
+}
+
+/* ===== HEADER ===== */
+header {
+    background: #111827;
+    padding: 20px;
+    text-align: center;
+    border-bottom: 2px solid #1e293b;
+}
+
+header h1 {
+    font-size: 28px;
+    color: #38bdf8; /* sky blue */
+}
+
+/* ===== NAV ===== */
+nav {
+    margin-top: 10px;
+}
+
+nav a {
+    color: #cbd5e1;
+    text-decoration: none;
+    margin: 0 15px;
+    font-weight: 500;
+    transition: 0.3s;
+}
+
+nav a:hover {
+    color: #38bdf8;
+}
+
+/* ===== BREAKING WEATHER ALERT ===== */
+.alert {
+    background: #7f1d1d;
+    color: #f8fafc;
+    padding: 10px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* ===== MAIN CONTAINER ===== */
+.container {
+    max-width: 1100px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+/* ===== WEATHER CARD ===== */
+.weather-card {
+    background: #1e293b;
+    padding: 25px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    transition: 0.3s;
+}
+
+.weather-card:hover {
+    background: #273449;
+}
+
+.weather-card h2 {
+    margin-bottom: 10px;
+    color: #38bdf8;
+}
+
+.weather-card p {
+    color: #cbd5e1;
+}
+
+/* ===== SIDEBAR STYLE SECTION ===== */
+.side-section {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.side-section h3 {
+    margin-bottom: 10px;
+    color: #38bdf8;
+}
+
+.side-section ul {
+    list-style: none;
+}
+
+.side-section li {
+    margin-bottom: 8px;
+}
+
+.side-section a {
+    text-decoration: none;
+    color: #cbd5e1;
+}
+
+.side-section a:hover {
+    color: #38bdf8;
+}
+
+/* ===== FOOTER ===== */
+footer {
+    text-align: center;
+    padding: 20px;
+    margin-top: 40px;
+    background: #111827;
+    border-top: 2px solid #1e293b;
+    color: #94a3b8;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    nav a {
+        display: block;
+        margin: 10px 0;
+    }
+}
