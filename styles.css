@@ -1,118 +1,241 @@
-/* ===== GOOGLE-LIKE PROFESSIONAL FONT STACK ===== */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-                 Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* ===== BODY ===== */
 body {
-    background: #0b1220;
-    color: #e5e7eb;
-    text-align: center;
+    font-family: 'Arial', sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    line-height: 1.6;
 }
 
-/* ===== MAIN WRAPPER (SMALL SITE WIDTH) ===== */
-.wrapper {
-    max-width: 700px;   /* makes site feel small & clean */
-    margin: 40px auto;
-    padding: 20px;
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #1f1f1f;
+    padding: 15px 30px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
-/* ===== HEADER ===== */
-header {
-    margin-bottom: 25px;
+.navbar .logo {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #00b4d8;
 }
 
-header h1 {
-    font-size: 28px;
-    font-weight: 600;
-    color: #4fc3f7;
-    letter-spacing: 0.5px;
+.nav-links {
+    list-style: none;
+    display: flex;
+    gap: 20px;
 }
 
-/* ===== NAVIGATION ===== */
-nav {
-    margin-top: 15px;
-}
-
-nav a {
-    display: inline-block;
-    margin: 6px;
-    padding: 8px 18px;
-    background: #1e293b;
-    color: #e5e7eb;
+.nav-links li a {
     text-decoration: none;
-    border-radius: 6px;
-    font-size: 14px;
+    color: #e0e0e0;
     font-weight: 500;
-    transition: 0.2s ease;
+    transition: color 0.2s;
 }
 
-nav a:hover {
-    background: #4fc3f7;
-    color: #0b1220;
+.nav-links li a:hover {
+    color: #00b4d8;
+    text-decoration: underline;
 }
 
-/* ===== WEATHER ALERT ===== */
-.alert {
-    background: #7f1d1d;
-    padding: 10px;
-    border-radius: 6px;
-    font-size: 14px;
-    margin-bottom: 20px;
+
+.container {
+    display: flex;
+    max-width: 1200px;
+    margin: 30px auto;
+    gap: 20px;
+    padding: 0 20px;
 }
 
-/* ===== WEATHER CARD ===== */
-.weather-card {
-    background: #1e293b;
-    padding: 25px;
-    border-radius: 10px;
-    margin-bottom: 20px;
+
+.sidebar {
+    width: 300px;
+    background-color: #1f1f1f;
+    padding: 20px;
+    border-radius: 8px;
+    flex-shrink: 0;
 }
 
-.weather-card h2 {
-    font-size: 20px;
-    margin-bottom: 10px;
-    color: #4fc3f7;
+.sidebar h3 {
+    color: #00b4d8;
+    margin-bottom: 15px;
 }
 
-.weather-card p {
-    font-size: 14px;
-    color: #cbd5e1;
-    margin-bottom: 12px;
+.sidebar ul {
+    list-style: none;
 }
 
-/* ===== TEMPERATURE STYLE ===== */
-.temperature {
-    font-size: 42px;
-    font-weight: 600;
-    margin: 15px 0;
-    color: #ffffff;
+.sidebar ul li {
+    padding: 8px 0;
+    border-bottom: 1px solid #2c2c2c;
 }
 
-/* ===== BUTTON ===== */
-.button {
-    display: inline-block;
-    padding: 8px 20px;
-    background: #4fc3f7;
-    color: #0b1220;
+.sidebar ul li a {
+    color: #e0e0e0;
     text-decoration: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    transition: 0.2s ease;
+    transition: color 0.2s;
 }
 
-.button:hover {
-    background: #38bdf8;
+.sidebar ul li a:hover {
+    color: #90e0ef;
 }
 
-/* ===== FOOTER ===== */
+
+.main-content {
+    flex: 1;
+}
+
+
+.article {
+    background-color: #1f1f1f;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.article:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.article h2 {
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+.article .meta {
+    font-size: 0.9em;
+    color: #aaaaaa;
+    margin-bottom: 15px;
+}
+
+.article p {
+    margin-bottom: 15px;
+}
+
+.article button,
+button {
+    padding: 10px 20px;
+    background-color: #00b4d8;
+    border: none;
+    border-radius: 5px;
+    color: #121212;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.article button:hover,
+button:hover {
+    background-color: #0096c7;
+}
+
+
+a {
+    color: #00b4d8;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    text-decoration: underline;
+    color: #90e0ef;
+}
+
 footer {
+    background-color: #1f1f1f;
+    padding: 20px 30px;
+    text-align: center;
     margin-top: 30px;
-    font-size: 13px;
-    color: #94a3b8;
+    border-top: 1px solid #2c2c2c;
+}
+
+footer a {
+    color: #00b4d8;
+}
+
+footer a:hover {
+    color: #90e0ef;
+}
+
+
+input, select, textarea {
+    padding: 10px;
+    border: 1px solid #2c2c2c;
+    border-radius: 5px;
+    background-color: #1f1f1f;
+    color: #e0e0e0;
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #00b4d8;
+}
+
+
+.card {
+    background-color: #1f1f1f;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+th, td {
+    padding: 10px;
+    border: 1px solid #2c2c2c;
+}
+
+th {
+    background-color: #272727;
+    color: #00b4d8;
+}
+
+
+@media (max-width: 992px) {
+    .container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .nav-links {
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .navbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
