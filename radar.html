@@ -35,7 +35,6 @@
         }
         .warning-tag { display: inline-block; width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; vertical-align: middle; }
         
-        /* Custom Popup Style */
         .leaflet-popup-content-wrapper { background: #111; color: white; border: 1px solid #444; }
         .leaflet-popup-tip { background: #111; }
     </style>
@@ -104,11 +103,9 @@
         ["04833", "KILX", "Lincoln, IL", 40.1506, -89.3369, "582", "30"],
         ["04832", "KPBZ", "Pittsburgh, PA", 40.5317, -80.2181, "1185", "20"],
         ["93767", "KLWX", "Sterling, VA", 38.9753, -77.4778, "272", "25"]
-        // Note: Full set of 150+ sites mapped similarly to coordinates. 
-        // Showing primary and requested sites for sample performance.
+   
     ];
 
-    // Add Markers to Map
     rdaData.forEach(site => {
         L.circleMarker([site[3], site[4]], {
             radius: 5, fillColor: "#007bff", color: "#fff", weight: 1, fillOpacity: 0.8
@@ -122,7 +119,6 @@
         `);
     });
 
-    // 3. Radar Logic (Global Composite)
     function updateRadar() {
         if (radarLayer) map.removeLayer(radarLayer);
         if (document.getElementById('check-radar').checked) {
@@ -136,7 +132,6 @@
         }
     }
 
-    // 4. Fixed Warnings Logic
     warningLayer = L.geoJson(null, {
         style: (f) => {
             const e = f.properties.event || "";
@@ -163,7 +158,6 @@
         } catch (e) { console.error("Warning error"); }
     }
 
-    // Listeners
     document.getElementById('check-radar').addEventListener('change', updateRadar);
     document.getElementById('check-warn').addEventListener('change', fetchWarnings);
 
