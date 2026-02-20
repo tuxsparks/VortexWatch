@@ -4,35 +4,64 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VortexWatch | Vehicles News<title>
+    <title>VortexWatch | Vehicles News</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-    
 <body>
 
+<!-- Navbar -->
 <nav class="navbar">
     <div class="logo">Vortex<span>Weather</span></div>
     <ul class="nav-links">
-        <li><a href="index.html" class="active">Home</a></li>
-        <li><a href="#">Radar</a></li>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="weather_vehicles_news.html" class="active">Vehicle News</a></li>
+        <li><a href="radar.html">Radar</a></li>
         <li><a href="#">About</a></li>
     </ul>
 </nav>
 
-<main>
-    <header class="page-header">
-        <h1>Latest Storm Reports</h1>
-        <p>Real-time updates from our field correspondents and satellite telemetry.</p>
-    </header>
+<!-- Page Container -->
+<div class="container">
 
-    <div id="news-container">
-        <div class="article">
-            <div class="meta">2026-02-18 | Station News</div>
-            <h2>TIV 2 Purchased for $30,000: The Resurrection of a Legend</h2>
-            <p>In a shocking turn of events for the storm chasing community, the iconic Tornado Intercept Vehicle 2 (TIV 2) was sold at a private auction on October 21, 2019 for a whopping $30,000. The vehicle, once the star of IMAX documentaries, had been sitting in disrepair for several years.</p>
-            <p>The buyer, Ryan Shepard mechanical engineer, has pledged to fully restore the 14,000-pound beast. Plans include upgrading the hydraulic skirting system and replacing the aging armor plating with modern carbon-steel composites.</p>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <h3>Latest Vehicle News</h3>
+        <ul>
+            <li><a href="#">TIV 2 Purchased for $30,000</a></li>
+            <li><a href="#">Storm Chaser Fleet Expands</a></li>
+            <li><a href="#">New Armored Weather Vehicles</a></li>
+            <li><a href="#">Mobile Radar Units Deployed</a></li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="page-header">
+            <h1>Latest Storm Reports</h1>
+            <p>Real-time updates from our field correspondents and satellite telemetry.</p>
+        </header>
+
+        <div id="news-container">
+
+            <!-- Article -->
+            <div class="article">
+                <div class="meta">2026-02-18 | Station News</div>
+                <h2>TIV 2 Purchased for $30,000: The Resurrection of a Legend</h2>
+                <p>In a shocking turn of events for the storm chasing community, the iconic Tornado Intercept Vehicle 2 (TIV 2) was sold at a private auction on October 21, 2019 for a whopping $30,000. The vehicle, once the star of IMAX documentaries, had been sitting in disrepair for several years.</p>
+                <p>The buyer, Ryan Shepard, mechanical engineer, has pledged to fully restore the 14,000-pound beast. Plans include upgrading the hydraulic skirting system and replacing the aging armor plating with modern carbon-steel composites.</p>
+                <button class="read-more">Read More</button>
+            </div>
+
+            <!-- You can add more articles below in the same format -->
         </div>
-</main>
+
+    </main>
+</div>
+
+<!-- Footer -->
+<footer>
+    &copy; 2026 VortexWatch | <a href="#">Contact</a> | <a href="#">Privacy</a>
+</footer>
 
 </body>
 </html>
