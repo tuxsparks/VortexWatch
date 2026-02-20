@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXRAD Pro-Map | NWS Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #0b0e11; color: white; }
+        #map { height: 100vh; width: 100%; }
+
+        .controls {
+            position: absolute; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(15, 15, 15, 0.95); padding: 18px; border-radius: 10px;
+            border: 1px solid #444; width: 240px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        }
+
+        h2 { margin: 0 0 15px 0; font-size: 14px; color: #ffcc00; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .section-label { font-size: 11px; color: #888; text-transform: uppercase; margin: 15px 0 5px 0; display: block; }
+        
+        select, .layer-control { 
+            width: 100%; background: #222; border: 1px solid #444; color: white; 
+            padding: 8px; border-radius: 5px; cursor: pointer; font-size: 13px; margin-bottom: 5px;
+        }
+
+        .layer-control { display: flex; align-items: center; box-sizing: border-box; }
+        .layer-control:hover { background: #333; }
+        .layer-control input { margin-right: 10px; }
+
+        .legend {
+            position: absolute; bottom: 30px; right: 20px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.85); padding: 12px; border-radius: 8px;
+            font-size: 11px; border: 1px solid #444; line-height: 1.5;
+        }
+        .warning-tag { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h2>NWS Station Monitor</h2>
+    
+    <span class="section-label">Select Doppler Tower</span>
+    <select id="station-select">
+        <option value="USCOMP" selected>Global Composite (US)</option>
+        <option value="KILN">KILN - Cincinnati, OH</option>
+        <option value="KLVX">KLVX - Louisville, KY</option>
+        <option value="KIWX">KIWX - Ft. Wayne, IN</option>
+        <option value="KILX">KILX - Central IL</option>
+        <option value="KPBZ">KPBZ - Pittsburgh, PA</option>
+        <option value="KCLE">KCLE - Cleveland, OH</option>
+    </select>
+
+    <span class="section-label">Radar Mode</span>
+    <label class="layer-control"><input type="radio" name="mode" id="mode-ref" checked> Base Reflectivity</label>
+    <label class="layer-control"><input type="radio" name="mode" id="mode-vel"> Base Velocity</label>
+
+    <span class="section-label">Overlays</span>
+    <label class="layer-control"><input type="checkbox" id="check-ltg" checked> Live Lightning</label>
+    <label class="layer-control"><input type="checkbox" id="check-warn" checked> NWS Warnings</label>
+    
+    <div id="status" style="font-size: 10px; color: #00ffcc; margin-top: 15px; font-family: monospace;">MODE: GLOBAL COMPOSITE</div>
+</div>
+
+<div class="legend">
+    <b style="color:#ffcc00">WARNING KEY</b><br>
+    <span class="warning-tag" style="background:red"></span> Tornado<br>
+    <span class="warning-tag" style="background:orange"></span> Severe T-Storm<br>
+    <span class="warning-tag" style="background:green"></span> Flood Warning<br>
+    <span class="warning-tag" style="background:#ff00ff"></span> Red Flag (Fire)<br>
+    <span class="warning-tag" style="background:#00ffff"></span> Winter Storm<br>
+    <span class="warning-tag" style="background:yellow"></span> Watch/Advisory
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Initialize Map - Defaulting to US view for Global Composite
+    const map = L.map('map', { center: [39.8283, -98.5795], zoom: 4, zoomControl: false });
+    
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    let radarLayer;
+    let ltgLayer;
+    let warningLayer;
+
+    // Tower Locations
+    const towers = [
+        { id: "KILN", name: "Cincinnati/Wilmington", lat: 39.4203, lon: -83.8217 },
+        { id: "KLVX", name: "Louisville", lat: 37.9753, lon: -85.9517 },
+        { id: "KIWX", name: "Ft. Wayne", lat: 41.3589, lon: -85.7000 },
+        { id: "KILX", name: "Central IL", lat: 40.1505, lon: -89.3369 },
+        { id: "KPBZ", name: "Pittsburgh", lat: 40.5231, lon: -80.2111 },
+        { id: "KCLE", name: "Cleveland", lat: 41.4131, lon: -81.8600 }
+    ];
+
+    // Add markers for Doppler Towers
+    towers.forEach(t => {
+        const marker = L.circleMarker([t.lat, t.lon], {
+            radius: 5, fillColor: "#007bff", color: "#fff", weight: 1, fillOpacity: 0.8
+        }).addTo(map);
+        marker.bindPopup(`<b>Tower: ${t.id}</b><br>${t.name}<br><button onclick="setStation('${t.id}')">Switch to this Tower</button>`);
+    });
+
+    function setStation(id) {
+        document.getElementById('station-select').value = id;
+        
+        // Fly to the station only when manually switching via the dropdown/popup
+        const tData = towers.find(t => t.id === id);
+        if (tData) map.flyTo([tData.lat, tData.lon], 8);
+        
+        updateRadar();
+    }
+
+    function updateRadar() {
+        const station = document.getElementById('station-select').value;
+        const isVelocity = document.getElementById('mode-vel').checked;
+        
+        if (radarLayer) map.removeLayer(radarLayer);
+
+        if (station === "USCOMP") {
+            // Global US Mosaic (Note: IEM does not have a national velocity mosaic, so it defaults to Reflectivity)
+            radarLayer = L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi?', {
+                layers: 'nexrad-n0q-900913',
+                format: 'image/png',
+                transparent: true,
+                opacity: 0.7,
+                maxNativeZoom: 10, // Global res is lower
+                maxZoom: 19,
+                zIndex: 100
+            });
+            document.getElementById('status').innerText = isVelocity ? `MODE: GLOBAL (REFLECT ONLY)` : `MODE: GLOBAL COMPOSITE`;
+        } else {
+            // Individual Station RIDGE 
+            // N0Q = High-Res Reflectivity | N0U = High-Res Base Velocity
+            const product = isVelocity ? 'N0U' : 'N0Q';
+            
+            radarLayer = L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/ridge.cgi?', {
+                layers: 'single',
+                sector: station,
+                prod: product,
+                format: 'image/png',
+                transparent: true,
+                opacity: 0.7,
+                maxNativeZoom: 14, // Allows deep zooming without disappearing
+                maxZoom: 19,
+                zIndex: 100
+            });
+            document.getElementById('status').innerText = `STATION: ${station} | ${isVelocity ? 'VELOCITY' : 'REFLECTIVITY'}`;
+        }
+        radarLayer.addTo(map);
+    }
+
+    function updateLightning() {
+        if (ltgLayer) map.removeLayer(ltgLayer);
+        if (document.getElementById('check-ltg').checked) {
+            // maxNativeZoom set to 6 because RainViewer lightning tiles only exist at low zoom levels
+            ltgLayer = L.tileLayer('https://tilecache.rainviewer.com/v2/lightning/latest/256/{z}/{x}/{y}/0.png', {
+                zIndex: 200, opacity: 0.9, maxNativeZoom: 6, maxZoom: 19
+            }).addTo(map);
+        }
+    }
+
+    warningLayer = L.geoJson(null, {
+        style: (f) => {
+            const ev = f.properties.event || "";
+            if (ev.includes('Tornado')) return {color:'red', weight:3, fillOpacity:0.5};
+            if (ev.includes('Severe Thunderstorm')) return {color:'orange', weight:2, fillOpacity:0.4};
+            if (ev.includes('Flood')) return {color:'green', weight:2, fillOpacity:0.3};
+            if (ev.includes('Red Flag') || ev.includes('Fire')) return {color:'#ff00ff', weight:2, fillOpacity:0.3};
+            if (ev.includes('Winter') || ev.includes('Snow') || ev.includes('Ice') || ev.includes('Blizzard')) return {color:'#00ffff', weight:2, fillOpacity:0.3};
+            return {color:'yellow', weight:1, fillOpacity:0.2};
+        },
+        onEachFeature: (f, l) => l.bindPopup(`<b>${f.properties.event}</b><br>${f.properties.headline}`)
+    }).addTo(map);
+
+    async function fetchWarnings() {
+        if (!document.getElementById('check-warn').checked) {
+            warningLayer.clearLayers();
+            return;
+        }
+        try {
+            // Removed region_type=land to ensure all warnings (including coastal/lake) are fetched
+            const res = await fetch('https://api.weather.gov/alerts/active');
+            const data = await res.json();
+            warningLayer.clearLayers().addData(data);
+        } catch (e) { console.error("Warning fetch failed"); }
+    }
+
+    // Event Listeners
+    document.getElementById('station-select').addEventListener('change', () => {
+        const id = document.getElementById('station-select').value;
+        const tData = towers.find(t => t.id === id);
+        if (tData) map.flyTo([tData.lat, tData.lon], 8);
+        updateRadar();
+    });
+    
+    document.getElementById('mode-ref').addEventListener('change', updateRadar);
+    document.getElementById('mode-vel').addEventListener('change', updateRadar);
+    document.getElementById('check-ltg').addEventListener('change', updateLightning);
+    document.getElementById('check-warn').addEventListener('change', fetchWarnings);
+
+    // Init
+    updateRadar();
+    updateLightning();
+    fetchWarnings();
+    setInterval(fetchWarnings, 60000);
+</script>
+</body>
+</html>
