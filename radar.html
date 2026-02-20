@@ -9,11 +9,10 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.timedimension@1.1.1/dist/leaflet.timedimension.control.min.css">
 
 <style>
-  /* ---------- layout ---------- */
+
   html,body{margin:0;padding:0;height:100%;font-family:system-ui,Arial;background:#0b0e11;color:#fff}
   #map{height:100vh;width:100%}
   
-  /* ---------- controls panel ---------- */
   .ctrl-panel{
     position:absolute;
     top:12px;left:12px;z-index:1000;
@@ -30,7 +29,6 @@
   .ctrl-panel input{margin-right:8px}
   .ctrl-panel small{display:block;margin-top:10px;color:#999;font-size:11px}
 
-  /* ---------- legend ---------- */
   .legend{
     position:absolute;
     bottom:14px;right:14px;z-index:1000;
@@ -44,7 +42,6 @@
   .legend b{color:#ffcc00}
   .legend i{display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:middle;border-radius:2px}
 
-  /* ---------- popups ---------- */
   .leaflet-popup-content-wrapper{background:#111;color:#fff;border:1px solid #444}
   .leaflet-popup-tip{background:#111}
 </style>
@@ -53,7 +50,6 @@
 <body>
 <div id="map"></div>
 
-<!-- ---------- Controls ---------- -->
 <div class="ctrl-panel">
   <h3>Overlays</h3>
   <label><input type="checkbox" id="radarToggle" checked> Radar Layer</label>
@@ -61,7 +57,6 @@
   <small>Source: IEM NEXRAD WMS / NWS API</small>
 </div>
 
-<!-- ---------- Legend ---------- -->
 <div class="legend">
   <b>Precipitation intensity</b><br>
   <i style="background:#4dac26"></i>Light<br>
@@ -72,17 +67,15 @@
   <i style="background:#a65628"></i>Hail / Severe
 </div>
 
-<!-- ---------- Scripts ---------- -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- (OPTIONAL) TimeDimension core + player -->
 <script src="https://unpkg.com/leaflet.timedimension@1.1.1/dist/leaflet.timedimension.min.js"></script>
 <script>
-/* ==========  CONFIG  ========== */
+
 const USE_TIMEDIMENSION = false;          //<< flip to true to enable playback
 const REFRESH_MINUTES   = 5;              //radar refresh interval
 const WARN_REFRESH_SEC  = 60;           //warning refresh interval
 
-/* ==========  MAP  ========== */
 const map=L.map('map',{center:[39,-98.5],zoom:5,zoomControl:false});
 L.control.zoom({position:'topright'}).addTo(map);
 
@@ -91,7 +84,6 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
   maxZoom:19
 }).addTo(map);
 
-/* ==========  RADAR  ========== */
 let radarLayer;
 
 function addRadar(){
@@ -124,7 +116,6 @@ function addRadar(){
   }
 }
 
-/* ==========  WARNINGS  ========== */
 let warnLayer=L.layerGroup().addTo(map);
 function fetchWarnings(){
   if(!document.getElementById('warnToggle').checked){warnLayer.clearLayers();return;}
@@ -148,7 +139,6 @@ function fetchWarnings(){
     .catch(()=>{/*silent*/});
 }
 
-/* ==========  RDA MARKERS (sample)  ========== */
 const rda=[ //id, call, name, lat, lon, elev-ft
   ['14733','KBUF','Buffalo NY',42.9489,-78.7367,693],
   ['53819','KFFC','Atlanta GA',33.3636,-84.5658,858],
@@ -162,7 +152,6 @@ rda.forEach(s=>{
    .bindPopup(`<b>${s[1]}</b> – ${s[2]}<br>ID: ${s[0]}<br>Elevation: ${s[5]} ft`);
 });
 
-/* ==========  EVENTS / TIMERS  ========== */
 document.getElementById('radarToggle').addEventListener('change',addRadar);
 document.getElementById('warnToggle').addEventListener('change',fetchWarnings);
 
