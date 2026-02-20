@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VortexWeather</title>
+    <title>VortexWeather | Global Storm Tracking</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- Top Navigation Bar -->
 <nav class="navbar">
-    <div class="logo">VortexWeather</div>
+    <div class="logo">Vortex<span>Weather</span></div>
     <ul class="nav-links">
-        <li><a href="#">Home</a></li>
+        <li><a href="#" class="active">Home</a></li>
         <li><a href="#">News</a></li>
         <li><a href="#">Forecast</a></li>
         <li><a href="#">Radar</a></li>
@@ -20,26 +19,37 @@
     </ul>
 </nav>
 
-<!-- Main Content -->
 <main>
-    <h1>VortexWeather</h1>
+    <header class="page-header">
+        <h1>Latest Storm Reports</h1>
+        <p>Real-time updates from our field correspondents and satellite telemetry.</p>
+    </header>
 
     <div id="news-container">
-
         <div class="article">
-            <h2>TIV 2 Purchased for $5,000</h2>
             <div class="meta">2026-02-18 | Station News</div>
-            <p>A weather enthusiast has purchased TIV 2 and plans to restore it.</p>
-            <button class="read-more">Read More</button>
+            <h2>TIV 2 Purchased for $5,000: The Resurrection of a Legend</h2>
+            <p>In a shocking turn of events for the storm chasing community, the iconic Tornado Intercept Vehicle 2 (TIV 2) was sold at a private auction yesterday for a mere $5,000. The vehicle, once the star of IMAX documentaries, had been sitting in disrepair for several years.</p>
+            <p>The buyer, a private weather enthusiast and mechanical engineer, has pledged to fully restore the 14,000-pound beast. Plans include upgrading the hydraulic skirting system and replacing the aging armor plating with modern carbon-steel composites.</p>
+            <button class="read-more">Full Story</button>
         </div>
 
         <div class="article">
-            <h2>Largest Tornado Recorded</h2>
             <div class="meta">2026-02-17 | Severe Weather</div>
-            <p>A record-breaking tornado was measured at 2.7 miles wide.</p>
-            <button class="read-more">Read More</button>
+            <h2>Record-Breaking Velocity: The 2.7-Mile Wide Monster</h2>
+            <p>Meteorologists are still analyzing data from last night's historic event. Preliminary radar surveys indicate the tornado reached a maximum width of 2.7 miles, making it one of the largest ever recorded by mobile Doppler units.</p>
+            <p>Beyond its size, the "vortex-within-a-vortex" structure observed by field teams suggests internal wind speeds exceeding 300 mph. Scientists believe a unique combination of high atmospheric instability and extreme low-level shear created the "perfect setup" for this anomaly.</p>
+            <p>Emergency management teams are currently on the ground. Despite the scale of the storm, early warning systems provided a 25-minute lead time, significantly reducing the potential for casualties.</p>
+            <button class="read-more">View Radar Data</button>
         </div>
 
+        <div class="article">
+            <div class="meta">2026-02-16 | Technology</div>
+            <h2>Next-Gen Satellite "Aegis-7" Successfully Deployed</h2>
+            <p>NASA and NOAA have confirmed that the Aegis-7 weather satellite has reached its geostationary orbit. This new hardware provides 30-second refresh rates on lightning detection and cloud-top cooling trends.</p>
+            <p>This deployment marks a new era in hyper-local forecasting, allowing meteorologists to predict "tornadogenesis" with much higher accuracy than the previous GOES series satellites.</p>
+            <button class="read-more">Read More</button>
+        </div>
     </div>
 </main>
 
