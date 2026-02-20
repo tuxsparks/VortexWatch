@@ -4,18 +4,23 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VortexWatch Radar | NWS Live Flood Warnings</title>
+    <title>VortexWatch Radar | Live Radar Animation</title>
+
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- TimeDimension CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-timedimension/1.1.0/leaflet.timedimension.control.min.css" />
+
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #0b0e11; color: white; }
-        #map { height: 100vh; width: 100%; background: #0b0e11; }
+        #map { height: 100vh; width: 100%; }
 
         .controls {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             background: rgba(15, 15, 15, 0.95); padding: 18px; border-radius: 10px;
             border: 1px solid #444; width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
-
         h2 { margin: 0 0 15px 0; font-size: 14px; color: #ffcc00; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .section-label { font-size: 11px; color: #888; text-transform: uppercase; margin: 5px 0 8px 0; display: block; }
         
@@ -41,6 +46,8 @@
 </head>
 <body>
 
+<div id="map"></div>
+
 <div class="controls">
     <h2>NWS RDA Monitor</h2>
     
@@ -49,88 +56,72 @@
     <label class="layer-control"><input type="checkbox" id="check-warn" checked> Active Warnings</label>
     
     <div id="status">System: Online</div>
-    <div id="map" style="position:relative; height:100vh; width:100%;">
-        
-        <div class="legend" style="position:absolute; bottom:30px; right:20px; z-index:1000;">
-            <b style="color:#ffcc00">RADAR LEGEND</b><br>
-            <span class="warning-tag" style="background:#FFFF00"></span> Blank / No Precipitation<br>
-            <span class="warning-tag" style="background:#00FF00"></span> Light Rain<br>
-            <span class="warning-tag" style="background:#0000FF"></span> Moderate Rain<br>
-            <span class="warning-tag" style="background:#FFA500"></span> Heavy Rain<br>
-            <span class="warning-tag" style="background:#FF0000"></span> Very Heavy Rain<br>
-            <span class="warning-tag" style="background:#8B00FF"></span> Extreme
-        </div>
+</div>
 
-    </div>
+<div class="legend">
+    <b style="color:#ffcc00">RADAR LEGEND</b><br>
+    <span class="warning-tag" style="background:#FFFF00"></span> Blank / No Precipitation<br>
+    <span class="warning-tag" style="background:#00FF00"></span> Light Rain<br>
+    <span class="warning-tag" style="background:#0000FF"></span> Moderate Rain<br>
+    <span class="warning-tag" style="background:#FFA500"></span> Heavy Rain<br>
+    <span class="warning-tag" style="background:#FF0000"></span> Very Heavy Rain<br>
+    <span class="warning-tag" style="background:#8B00FF"></span> Extreme
+</div>
 
-    <div id="map"></div>
-
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- TimeDimension JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-timedimension/1.1.0/leaflet.timedimension.min.js"></script>
+
 <script>
-    const map = L.map('map', { center: [39.8, -98.5], zoom: 5, zoomControl: false });
-    
+
+    // 1. Initialize Map with TimeDimension
+    const map = L.map('map', {
+        center: [39.8, -98.5],
+        zoom: 5,
+        zoomControl: false,
+        timeDimension: true,
+        timeDimensionControl: true,
+        timeDimensionControlOptions: {
+            position: 'bottomleft',
+            autoPlay: true,
+            minSpeed: 1,
+            maxSpeed: 10,
+            speedStep: 1,
+            timeSliderDragUpdate: true
+        }
+    });
+
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     let radarLayer;
     let warningLayer;
 
-    const rdaData = [
-        ["14929", "KABR", "Aberdeen, SD", 45.4558, -98.4131, "1302", "20"],
-        ["54766", "KENX", "Albany, NY", 42.5864, -74.0639, "1826", "20"],
-        ["03019", "KABX", "Albuquerque, NM", 35.1497, -106.8239, "5870", "20"],
-        ["03981", "KFDR", "Altus AFB, OK", 34.3622, -98.9764, "1267", "10"],
-        ["23047", "KAMA", "Amarillo, TX", 35.2333, -101.7092, "3587", "20"],
-        ["26548", "PAHG", "Anchorage, AK", 60.7258, -151.3514, "242", "30"],
-        ["41417", "PGUA", "Anderson AFB, GU", 13.4525, 144.8114, "264", "30"],
-        ["53819", "KFFC", "Atlanta, GA", 33.3636, -84.5658, "858", "30"],
-        ["12971", "KEWX", "Austin/San Antonio, TX", 29.7039, -98.0283, "633", "20"],
-        ["93240", "KBBX", "Beale AFB, CA", 39.4961, -121.6317, "167", "10"],
-        ["94096", "KBLX", "Billings, MT", 45.8539, -108.6067, "3598", "10"],
-        ["04725", "KBGM", "Binghamton, NY", 42.1997, -75.9847, "1606", "20"],
-        ["53823", "KBMX", "Birmingham, AL", 33.1722, -86.7697, "645", "30"],
-        ["24011", "KBIS", "Bismarck, ND", 46.7708, -100.7606, "1658", "20"],
-        ["04101", "KCBX", "Boise, ID", 43.4906, -116.2356, "3061", "20"],
-        ["54765", "KBOX", "Boston, MA", 41.9558, -71.1369, "118", "30"],
-        ["13841", "KILN", "Cincinnati, OH", 39.4203, -83.8217, "1056", "30"],
-        ["14820", "KCLE", "Cleveland, OH", 41.4131, -81.8597, "763", "20"],
-        ["03985", "KFWS", "Dallas/Ft. Worth, TX", 32.5731, -97.3031, "683", "20"],
-        ["14733", "KBUF", "Buffalo, NY", 42.9489, -78.7367, "693", "20"],
-        ["04831", "KLOT", "Chicago, IL", 41.6047, -88.0847, "663", "20"],
-        ["93819", "KIND", "Indianapolis, IN", 39.7075, -86.2803, "790", "20"],
-        ["53827", "KLVX", "Louisville, KY", 37.9753, -85.9439, "719", "30"],
-        ["04833", "KILX", "Lincoln, IL", 40.1506, -89.3369, "582", "30"],
-        ["04832", "KPBZ", "Pittsburgh, PA", 40.5317, -80.2181, "1185", "20"],
-        ["93767", "KLWX", "Sterling, VA", 38.9753, -77.4778, "272", "25"]
-   
-    ];
-
-    rdaData.forEach(site => {
-        L.circleMarker([site[3], site[4]], {
-            radius: 5, fillColor: "#007bff", color: "#fff", weight: 1, fillOpacity: 0.8
-        }).addTo(map).bindPopup(`
-            <b style="color:#ffcc00">${site[1]}</b><br>
-            ${site[2]}<br>
-            <hr style="border:0; border-top:1px solid #333;">
-            WBAN: ${site[0]}<br>
-            Elev: ${site[5]} ft<br>
-            Tower: ${site[6]}m
-        `);
-    });
-
-    function updateRadar() {
+    function addRadarTimeLayer() {
         if (radarLayer) map.removeLayer(radarLayer);
-        if (document.getElementById('check-radar').checked) {
-            radarLayer = L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi?', {
-                layers: 'nexrad-n0q-900913',
-                format: 'image/png',
-                transparent: true,
-                opacity: 0.6,
-                maxNativeZoom: 10
-            }).addTo(map);
-        }
+        if (!document.getElementById('check-radar').checked) return;
+
+        radarLayer = L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi?', {
+            layers: 'nexrad-n0r-900913',
+            format: 'image/png',
+            transparent: true,
+            opacity: 0.6,
+            tileSize: 512
+        });
+
+        let tdLayer = L.timeDimension.layer.wms(radarLayer, {
+            updateTimeDimension: true,
+            setDefaultTime: true
+        });
+
+        tdLayer.addTo(map);
     }
 
+    addRadarTimeLayer();
+
+    // Warning layer
     warningLayer = L.geoJson(null, {
         style: (f) => {
             const e = f.properties.event || "";
@@ -140,8 +131,7 @@
             if (e.includes('Red Flag')) return {color:'#ff00ff', weight:2, fillOpacity:0.4};
             if (e.includes('Winter')) return {color:'#00ffff', weight:2, fillOpacity:0.4};
             return {color:'yellow', weight:1, fillOpacity:0.2};
-        },
-        onEachFeature: (f, l) => l.bindPopup(`<b>${f.properties.event}</b><br>${f.properties.headline}`)
+        }
     }).addTo(map);
 
     async function fetchWarnings() {
@@ -153,17 +143,16 @@
             const res = await fetch('https://api.weather.gov/alerts/active');
             const data = await res.json();
             warningLayer.clearLayers().addData(data);
-            document.getElementById('status').innerText = `SYSTEM: ${data.features.length} ACTIVE ALERTS`;
         } catch (e) { console.error("Warning error"); }
     }
 
-    document.getElementById('check-radar').addEventListener('change', updateRadar);
+    document.getElementById('check-radar').addEventListener('change', addRadarTimeLayer);
     document.getElementById('check-warn').addEventListener('change', fetchWarnings);
 
-    // Init
-    updateRadar();
     fetchWarnings();
     setInterval(fetchWarnings, 60000);
+
 </script>
+
 </body>
 </html>
