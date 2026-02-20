@@ -6,6 +6,144 @@
     <title>VortexWeather | Global Storm Tracking</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
+<style>/* Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #121212;
+    color: #e0e0e0;
+    line-height: 1.6;
+}
+
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #1f1f1f;
+    padding: 15px 30px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+
+.navbar .logo {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #00b4d8;
+}
+
+.nav-links {
+    list-style: none;
+    display: flex;
+    gap: 20px;
+}
+
+.nav-links li a {
+    text-decoration: none;
+    color: #e0e0e0;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.nav-links li a:hover {
+    color: #00b4d8;
+    text-decoration: underline;
+}
+
+/* Main content */
+main {
+    padding: 30px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #00b4d8;
+}
+
+/* Articles */
+.article {
+    background-color: #1f1f1f;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.article:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.article h2 {
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+.article .meta {
+    font-size: 0.9em;
+    color: #aaaaaa;
+    margin-bottom: 15px;
+}
+
+.article p {
+    margin-bottom: 15px;
+}
+
+/* Buttons */
+button.read-more {
+    padding: 10px 20px;
+    background-color: #00b4d8;
+    border: none;
+    border-radius: 5px;
+    color: #121212;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button.read-more:hover {
+    background-color: #0096c7;
+}
+
+/* Links inside articles */
+a {
+    color: #00b4d8;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    text-decoration: underline;
+    color: #90e0ef;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .nav-links {
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .navbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+</style>
+
+    
+    
 <body>
 
 <nav class="navbar">
