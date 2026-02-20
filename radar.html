@@ -3,155 +3,149 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEXRAD RDA Monitor | Live Radar & Warnings</title>
-
-    <!-- Leaflet CSS -->
+    <title>Pro NEXRAD | Time-Dimension Playback</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-    <!-- TimeDimension CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-timedimension/1.1.0/leaflet.timedimension.control.min.css" />
-
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-timedimension@1.1.1/dist/leaflet.timedimension.control.min.css" />
+    
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background: #0b0e11; color: white; }
-        #map { height: 100vh; width: 100%; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b0e11; color: white; }
+        #map { height: 100vh; width: 100%; background: #0b0e11; }
 
-        .controls {
-            position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(15, 15, 15, 0.95); padding: 18px; border-radius: 10px;
-            border: 1px solid #444; width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        /* UI Panels */
+        .panel {
+            position: absolute; z-index: 1000;
+            background: rgba(15, 15, 15, 0.9); border: 1px solid #444;
+            padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
+        
+        .controls { top: 20px; left: 20px; width: 220px; }
+        h2 { margin: 0 0 10px 0; font-size: 14px; color: #ffcc00; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        
+        .layer-item { display: flex; align-items: center; margin-bottom: 8px; cursor: pointer; font-size: 13px; }
+        .layer-item input { margin-right: 10px; }
 
-        h2 { margin: 0 0 15px 0; font-size: 14px; color: #ffcc00; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .section-label { font-size: 11px; color: #888; text-transform: uppercase; margin: 5px 0 8px 0; display: block; }
+        /* Radar Legend Styles */
+        .legend { bottom: 30px; right: 20px; width: 180px; font-size: 11px; }
+        .legend-title { font-weight: bold; margin-bottom: 8px; color: #ffcc00; display: block; text-align: center;}
+        .legend-row { display: flex; align-items: center; margin-bottom: 4px; }
+        .color-box { width: 30px; height: 12px; margin-right: 10px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.2); }
 
-        .layer-control { 
-            display: flex; align-items: center; width: 100%; background: #222; border: 1px solid #444; 
-            color: white; padding: 10px; border-radius: 5px; cursor: pointer; font-size: 13px; 
-            margin-bottom: 8px; box-sizing: border-box;
-        }
-        .layer-control input { margin-right: 12px; }
-
+        /* Time Dimension UI Overrides for Dark Mode */
+        .leaflet-bar a { background-color: #222 !important; color: #fff !important; border-bottom: 1px solid #444 !important; }
+        .leaflet-control-timedimension { background: rgba(15, 15, 15, 0.9) !important; color: white !important; border: 1px solid #444 !important; }
+        
         #status { font-size: 10px; color: #00ffcc; margin-top: 10px; font-family: monospace; }
-
-        .legend {
-            position: absolute; bottom: 30px; right: 20px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.85); padding: 12px; border-radius: 8px;
-            font-size: 11px; border: 1px solid #444; line-height: 1.6;
-        }
-        .warning-tag { display: inline-block; width: 12px; height: 12px; margin-right: 8px; border-radius: 2px; vertical-align: middle; }
-
-        .leaflet-popup-content-wrapper { background: #111; color: white; border: 1px solid #444; }
-        .leaflet-popup-tip { background: #111; }
     </style>
 </head>
 <body>
 
-<div class="controls">
-    <h2>NWS RDA Monitor</h2>
-    
-    <span class="section-label">Map Overlays</span>
-    <label class="layer-control"><input type="checkbox" id="check-radar" checked> Composite Radar</label>
-    <label class="layer-control"><input type="checkbox" id="check-warn" checked> Active Warnings</label>
-    
-    <div id="status">Source: IEM/NWS Hybrid</div>
+<div class="panel controls">
+    <h2>Radar Control</h2>
+    <label class="layer-item"><input type="checkbox" id="toggle-radar" checked> Live NEXRAD (Loop)</label>
+    <label class="layer-item"><input type="checkbox" id="toggle-warn" checked> Active NWS Warnings</label>
+    <div id="status">Syncing Time...</div>
 </div>
 
-<div class="legend">
-    <b style="color:#ffcc00">WARNING PRIORITY</b><br>
-    <span class="warning-tag" style="background:#FF0000"></span> Tornado (Bright Red)<br>
-    <span class="warning-tag" style="background:#FFA500"></span> Severe T-Storm (Orange)<br>
-    <span class="warning-tag" style="background:#00FF00"></span> Flash Flood (Green)<br>
-    <span class="warning-tag" style="background:#FFFF00"></span> Special Marine (Yellow)
+<div class="panel legend">
+    <span class="legend-title">PRECIPITATION INTENSITY</span>
+    <div class="legend-row"><div class="color-box" style="background: #9d15b0;"></div> Purple: Hail / Severe</div>
+    <div class="legend-row"><div class="color-box" style="background: #ff0000;"></div> Red: Extreme</div>
+    <div class="legend-row"><div class="color-box" style="background: #ff8c00;"></div> Orange: Very Heavy</div>
+    <div class="legend-row"><div class="color-box" style="background: #0000ff;"></div> Blue: Heavy Rain</div>
+    <div class="legend-row"><div class="color-box" style="background: #00ff00;"></div> Green: Moderate</div>
+    <div class="legend-row"><div class="color-box" style="background: #ffff00;"></div> Yellow: Light Rain</div>
 </div>
 
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- TimeDimension JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-timedimension/1.1.0/leaflet.timedimension.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/iso8601-js-period@0.2.1/iso8601.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-timedimension@1.1.1/dist/leaflet.timedimension.min.js"></script>
 
 <script>
-    // Initialize Map with TimeDimension
+    // 1. Map Setup
     const map = L.map('map', {
-        center: [39.8, -98.5],
+        center: [38.5, -96.5],
         zoom: 5,
         zoomControl: false,
         timeDimension: true,
+        timeDimensionOptions: {
+            timeInterval: "PT2H/PRESENT", // Last 2 hours
+            period: "PT5M",               // 5 minute increments
+        },
         timeDimensionControl: true,
         timeDimensionControlOptions: {
-            position: 'bottomleft',
             autoPlay: true,
-            minSpeed: 1,
-            maxSpeed: 10,
-            speedStep: 1,
-            timeSliderDragUpdate: true
+            playerOptions: {
+                transitionTime: 500,
+                loop: true
+            }
         }
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-    L.control.zoom({ position: 'topright' }).addTo(map);
 
-    // RDA Station Data
-    const rdaData = [
-        ["14929","KABR","Aberdeen, SD",45.4558,-98.4131,"1302","20"],
-        ["54766","KENX","Albany, NY",42.5864,-74.0639,"1826","20"],
-        ["13841","KILN","Cincinnati, OH",39.4203,-83.8217,"1056","30"],
-        ["14820","KCLE","Cleveland, OH",41.4131,-81.8597,"763","20"],
-        ["53827","KLVX","Louisville, KY",37.9753,-85.9439,"719","30"],
-        ["04833","KILX","Lincoln, IL",40.1506,-89.3369,"582","30"]
+    // 2. RDA Locations Array
+    const rdaSites = [
+        ["KABR", 45.4558, -98.4131], ["KENX", 42.5864, -74.0639], ["KABX", 35.1497, -106.8239],
+        ["KILN", 39.4203, -83.8217], ["KCLE", 41.4131, -81.8597], ["KLVX", 37.9753, -85.9439],
+        ["KLOT", 41.6047, -88.0847], ["KFWS", 32.5731, -97.3031], ["KFFC", 33.3636, -84.5658]
     ];
 
-    rdaData.forEach(site => {
-        L.circleMarker([site[3], site[4]], {
-            radius: 5, fillColor: "#007bff", color: "#fff", weight: 1, fillOpacity: 0.8
-        }).addTo(map).bindPopup(`<b>${site[1]}</b><br>${site[2]}<br>Elev: ${site[5]}ft`);
+    rdaSites.forEach(s => {
+        L.circleMarker([s[1], s[2]], {
+            radius: 4, fillColor: "#333", color: "#666", weight: 1, fillOpacity: 0.8
+        }).addTo(map).bindPopup(`<b>Station ID: ${s[0]}</b>`);
     });
 
-    let radarLayer;
-    let warningLayer;
+    // 3. WMS Layers
+    // Base Radar Layer
+    const radarWMS = L.tileLayer.wms("https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi", {
+        layers: 'nexrad-n0q-900913',
+        format: 'image/png',
+        transparent: true,
+        opacity: 0.7,
+        attribution: "IEM NEXRAD"
+    });
 
-    function addRadarTimeLayer() {
-        if (radarLayer) map.removeLayer(radarLayer);
-        if (!document.getElementById('check-radar').checked) return;
+    // Wrap Radar in TimeDimension
+    const tdRadarLayer = L.timeDimension.layer.wms(radarWMS, {
+        updateTimeDimension: true,
+        requestTimeFromCapabilities: true
+    });
+    tdRadarLayer.addTo(map);
 
-        radarLayer = L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0r.cgi?', {
-            layers: 'nexrad-n0r-900913',
-            format: 'image/png',
-            transparent: true,
-            opacity: 0.6,
-            tileSize: 512
-        });
+    // Live Warning Layer (IEM WMS - Pre-styled for accuracy)
+    const warningLayer = L.tileLayer.wms("https://mesonet.agron.iastate.edu/cgi-bin/wms/uswarnings.cgi?", {
+        layers: 'warnings_loop',
+        format: 'image/png',
+        transparent: true,
+        opacity: 0.8,
+        zIndex: 1000
+    }).addTo(map);
 
-        let tdLayer = L.timeDimension.layer.wms(radarLayer, {
-            updateTimeDimension: true,
-            setDefaultTime: true
-        });
+    // 4. Interaction Logic
+    document.getElementById('toggle-radar').addEventListener('change', (e) => {
+        if (e.target.checked) tdRadarLayer.addTo(map);
+        else map.removeLayer(tdRadarLayer);
+    });
 
-        tdLayer.addTo(map);
-    }
+    document.getElementById('toggle-warn').addEventListener('change', (e) => {
+        if (e.target.checked) warningLayer.addTo(map);
+        else map.removeLayer(warningLayer);
+    });
 
-    function addWarningsLayer() {
-        if (warningLayer) map.removeLayer(warningLayer);
-        if (!document.getElementById('check-warn').checked) return;
+    // Auto-Refresh Logic (Every 2 mins)
+    setInterval(() => {
+        document.getElementById('status').innerText = "REFRESHING DATA...";
+        warningLayer.redraw();
+        // TimeDimension refreshes itself based on the presentation interval
+        setTimeout(() => { document.getElementById('status').innerText = "SYSTEM: LIVE"; }, 2000);
+    }, 120000);
 
-        warningLayer = L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/uswarnings.cgi?', {
-            layers: 'warnings_loop',
-            format: 'image/png',
-            transparent: true,
-            opacity: 0.8,
-            zIndex: 1000
-        }).addTo(map);
-    }
+    document.getElementById('status').innerText = "SYSTEM: LIVE";
 
-    document.getElementById('check-radar').addEventListener('change', addRadarTimeLayer);
-    document.getElementById('check-warn').addEventListener('change', addWarningsLayer);
-
-    addRadarTimeLayer();
-    addWarningsLayer();
-
-    setInterval(() => { addRadarTimeLayer(); addWarningsLayer(); }, 120000); // refresh every 2 min
 </script>
-
 </body>
 </html>
