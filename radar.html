@@ -49,20 +49,22 @@
     <label class="layer-control"><input type="checkbox" id="check-warn" checked> Active Warnings</label>
     
     <div id="status">System: Online</div>
-</div>
-    <div class="legend">
-    <b style="color:#ffcc00">RADAR LEGEND</b><br>
-    <span class="warning-tag" style="background:#FFFF00"></span> Blank / No Precipitation<br>
-    <span class="warning-tag" style="background:#00FF00"></span> Light Rain<br>
-    <span class="warning-tag" style="background:#0000FF"></span> Moderate Rain<br>
-    <span class="warning-tag" style="background:#FFA500"></span> Heavy Rain<br>
-    <span class="warning-tag" style="background:#FF0000"></span> Very Heavy Rain<br>
-    <span class="warning-tag" style="background:#8B00FF"></span> Extreme
-</div>
+    <div id="map" style="position:relative; height:100vh; width:100%;">
+        
+        <div class="legend" style="position:absolute; bottom:30px; right:20px; z-index:1000;">
+            <b style="color:#ffcc00">RADAR LEGEND</b><br>
+            <span class="warning-tag" style="background:#FFFF00"></span> Blank / No Precipitation<br>
+            <span class="warning-tag" style="background:#00FF00"></span> Light Rain<br>
+            <span class="warning-tag" style="background:#0000FF"></span> Moderate Rain<br>
+            <span class="warning-tag" style="background:#FFA500"></span> Heavy Rain<br>
+            <span class="warning-tag" style="background:#FF0000"></span> Very Heavy Rain<br>
+            <span class="warning-tag" style="background:#8B00FF"></span> Extreme
+        </div>
+
+    </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 1. Initialize Map
     const map = L.map('map', { center: [39.8, -98.5], zoom: 5, zoomControl: false });
     
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
@@ -71,7 +73,6 @@
     let radarLayer;
     let warningLayer;
 
-    // 2. WSR-88D RDA Locations Data
     const rdaData = [
         ["14929", "KABR", "Aberdeen, SD", 45.4558, -98.4131, "1302", "20"],
         ["54766", "KENX", "Albany, NY", 42.5864, -74.0639, "1826", "20"],
