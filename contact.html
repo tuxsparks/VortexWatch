@@ -1,0 +1,92 @@
+doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Electron SMP Whitelist Application — Season 2</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="hero small">
+    <h1>⚡ Electron SMP Season 2 Whitelist Application</h1>
+    <p class="tagline">
+        Fill out the form below to apply. Admins will review submissions in Discord.
+    </p>
+
+    <div class="buttons">
+        <a href="index.html" class="btn secondary">← Back to Home</a>
+        <a href="https://discord.gg/F6FWGPeegY" class="btn primary">Join Our Discord</a>
+    </div>
+</header>
+
+<main class="content">
+
+<section>
+    <h2>Application Form</h2>
+    <p>Please answer all questions honestly. Applications are reviewed carefully.</p>
+
+    <form id="whitelistForm">
+
+        <label for="mcname">Minecraft Username:</label><br>
+        <input type="text" id="email" name="email" placeholder="Your Email" required><br><br>
+
+        <label for="dcname">Discord Username:</label><br>
+        <input type="text" id="whatyouwanttosay" name="whatyouwanttosay" placeholder="Write what you want to say ( It can be a request to add something on the news etc)" required><br><br>
+
+        <button type="submit" class="btn primary">Submit Application</button>
+    </form>
+
+    <p id="status" class="note"></p>
+</section>
+
+</main>
+
+<script>
+const webhookURL = "https://discord.com/api/webhooks/1464292533185286401/7rxJ5vE-b7V4aBKSbE7Mhyedqqdq_8WKVBFN5hy-Tr46i8CiF4tg__eP5EvoJLmcmvRB";
+
+const form = document.getElementById("whitelistForm");
+const status = document.getElementById("status");
+
+form.addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    const data = {
+        mcname: document.getElementById("email").value,
+        dcname: document.getElementById("whatyouwanttosay").value,
+    };
+
+    const payload = {
+        content: null,
+        embeds: [{
+            title: `New Whitelist Application: ${data.mcname}`,
+            color: 5814783,
+            fields: [
+                { name: "Email", value: data.email },
+                { name: "What you want to say", value: data.whatyouwanttosay },
+            ],
+            timestamp: new Date().toISOString()
+        }]
+    };
+
+    fetch(webhookURL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    })
+    .then(response => {
+        if(response.ok){
+            status.textContent = "✅ Application sent! Admins will review it in Discord.";
+            form.reset();
+        } else {
+            status.textContent = "❌ Failed to send application. Try again later.";
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        status.textContent = "❌ Error sending application. Check console.";
+    });
+});
+</script>
+
+</body>
+</html>
