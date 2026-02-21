@@ -284,12 +284,17 @@ hr {
 }
 
 #ww_a7fc5f7cf9399 {
-    display: block;           /* ensures block behavior */
-    margin: 0 auto;           /* horizontal center */
-    text-align: center;       /* center text inside */
-    transform: scale(1.5);    /* increase size by 1.5x */
-    transform-origin: top center; /* scale from center top */
+    display: flex !important;
+    justify-content: center !important; /* horizontal center */
+    align-items: center !important;     /* vertical center (optional) */
+    width: 100%;                        /* make sure it uses full width */
 }
 
-
+#ww_a7fc5f7cf9399 iframe,
+#ww_a7fc5f7cf9399 > div {
+    display: block !important;
+    margin: 0 auto !important;
+    transform: scale(1.5);     
+    transform-origin: top center;
+}
 
