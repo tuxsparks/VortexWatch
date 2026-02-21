@@ -282,3 +282,14 @@ hr {
     border-top: 1px solid var(--border);
     margin: 3rem 0;
 }
+
+#ww_a7fc5f7cf9399 {
+    display: block;           /* ensures block behavior */
+    margin: 0 auto;           /* horizontal center */
+    text-align: center;       /* center text inside */
+    transform: scale(1.5);    /* increase size by 1.5x */
+    transform-origin: top center; /* scale from center top */
+}
+
+
+
