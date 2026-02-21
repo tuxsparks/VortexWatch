@@ -298,3 +298,20 @@ hr {
     transform-origin: top center;
 }
 
+/* Container for images */
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-gap: 1rem; /* spacing between images */
+    margin: 2rem 0;
+}
+
+/* Individual images inside grid */
+.image-grid img {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+    display: block;
+    object-fit: cover;
+}
