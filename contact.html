@@ -22,8 +22,8 @@ doctype html>
 <main class="content">
 
 <section>
-    <h2>Application Form</h2>
-    <p>Please answer all questions honestly. Applications are reviewed carefully.</p>
+    <h2>Contact Us!</h2>
+    <p>Please have patience. We have a very small staff team with only 2 members!</p>
 
     <form id="whitelistForm">
 
@@ -75,10 +75,10 @@ form.addEventListener("submit", function(e) {
     })
     .then(response => {
         if(response.ok){
-            status.textContent = "✅ Application sent! Admins will review it in Discord.";
+            status.textContent = "✅ Application sent! Admins will review it!.";
             form.reset();
         } else {
-            status.textContent = "❌ Failed to send application. Try again later.";
+            status.textContent = "❌ Failed to contact us. Try again later.";
         }
     })
     .catch(err => {
