@@ -1,86 +1,85 @@
-doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>Electron SMP Whitelist Application — Season 2</title>
-    <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8">
+<title>Contact — VortexWatch</title>
+<link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
-    <h1>Contact VortexWatch!</h1>
-    <p class="tagline">
-        Contact us! We may reply in 48-96 hours or maybe 24 hours if you are lucky!
-    </p>
-        <a href="index.html" class="btn secondary">← Back to Home</a>
-    
+<header>
+<h1>Contact VortexWatch!</h1>
+<p class="tagline">
+Contact us! We may reply in 24-96 hours.
+</p>
+<a href="index.html" class="btn secondary">← Back to Home</a>
 </header>
 
 <main class="content">
 
 <section>
-    <h2>Contact Us!</h2>
-    <p>Please have patience. We have a very small staff team with only 2 members!</p>
+<h2>Contact Us</h2>
+<p>Please have patience. We only have 2 staff members.</p>
 
-    <form id="whitelistForm">
+<form id="whitelistForm">
 
-        <label for="mcname">Your Email:</label><br>
-        <input type="text" id="email" name="email" placeholder="Your Email" required><br><br>
+<label for="email">Your Email:</label><br>
+<input type="email" id="email" placeholder="Your Email" required><br><br>
 
-        <label for="dcname">What you want to say:</label><br>
-        <input type="text" id="whatyouwanttosay" name="whatyouwanttosay" placeholder="Write what you want to say ( It can be a request to add something on the news etc)" required><br><br>
+<label for="message">What you want to say:</label><br>
+<textarea id="message" placeholder="Write your message..." required></textarea><br><br>
 
-        <button type="submit" class="btn primary">Submit Application</button>
-    </form>
+<button type="submit" class="btn primary">Send Message</button>
 
-    <p id="status" class="note"></p>
+</form>
+
+<p id="status" class="note"></p>
+
 </section>
 
 </main>
 
 <script>
-const webhookURL = "https://discord.com/api/webhooks/1474580220991508552/tNLMUG6G8BXK3etiCPfH0IRZi0mB3N84MSKE4mcU4mSbirsrxZf6kHjh9XL2WUoOVFNH";
+const webhookURL = "YOUR_WEBHOOK";
 
 const form = document.getElementById("whitelistForm");
 const status = document.getElementById("status");
 
 form.addEventListener("submit", function(e) {
-    e.preventDefault();
+e.preventDefault();
 
-    const data = {
-        mcname: document.getElementById("email").value,
-        dcname: document.getElementById("whatyouwanttosay").value,
-    };
+const email = document.getElementById("email").value;
+const message = document.getElementById("message").value;
 
-    const payload = {
-        content: null,
-        embeds: [{
-            title: `New Whitelist Application: ${data.mcname}`,
-            color: 5814783,
-            fields: [
-                { name: "Email", value: data.email },
-                { name: "What you want to say", value: data.whatyouwanttosay },
-            ],
-            timestamp: new Date().toISOString()
-        }]
-    };
+const payload = {
+embeds: [{
+title: "New Contact Form Submission",
+color: 5814783,
+fields: [
+{ name: "Email", value: email },
+{ name: "Message", value: message }
+],
+timestamp: new Date().toISOString()
+}]
+};
 
-    fetch(webhookURL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    })
-    .then(response => {
-        if(response.ok){
-            status.textContent = "✅ Application sent! Admins will review it!.";
-            form.reset();
-        } else {
-            status.textContent = "❌ Failed to contact us. Try again later.";
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        status.textContent = "❌ Error sending application. Check console.";
-    });
+fetch(webhookURL, {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify(payload)
+})
+.then(res => {
+if(res.ok){
+status.textContent = "✅ Message sent!";
+form.reset();
+}else{
+status.textContent = "❌ Failed to send.";
+}
+})
+.catch(() => {
+status.textContent = "❌ Network error.";
+});
 });
 </script>
 
