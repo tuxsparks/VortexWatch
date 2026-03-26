@@ -50,14 +50,38 @@
 <div id="map"></div>
 
 <div class="ctrl-panel">
-  <h3>Overlays</h3>
+  <h3>Radar Controls</h3>
   <label><input type="checkbox" id="radarToggle" checked> Radar Layer</label>
   <label><input type="checkbox" id="warnToggle" checked> NWS Warnings</label>
-  <small>Source: IEM NEXRAD WMS / NWS API</small>
+  <label><input type="checkbox" id="towerToggle" checked> Radar Towers</label>
+
+  <div>View</div>
+  <select id="sourceSelect">
+    <option value="composite">National Composite</option>
+    <option value="site">Selected Tower</option>
+  </select>
+
+  <div>Product</div>
+  <select id="productSelect">
+    <option value="reflectivity">Reflectivity</option>
+    <option value="velocity">Base Velocity</option>
+  </select>
+
+  <div>Radar Tower</div>
+  <select id="stationSelect">
+    <option value="">Loading towers...</option>
+  </select>
+
+  <div>Timeline</div>
+  <button id="playPauseBtn" type="button">Play</button>
+  <button id="latestBtn" type="button">Latest</button>
+  <input type="range" id="timeline" min="0" max="0" value="0" step="1">
+  <small id="timelineLabel">Loading radar frames...</small>
+  <small id="statusText">Sources: IEM RIDGE / IEM NEXRAD WMS / weather.gov</small>
 </div>
 
-<div class="legend">
-  <b>Precipitation intensity</b><br>
+<div class="legend" id="legendBox">
+  <b>Reflectivity intensity</b><br>
   <i style="background:blue"></i>Light<br>
   <i style="background:green"></i>Moderate<br>
   <i style="background:yellow"></i>Heavy<br>
@@ -67,97 +91,740 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<!-- (OPTIONAL) TimeDimension core + player -->
 <script src="https://unpkg.com/leaflet.timedimension@1.1.1/dist/leaflet.timedimension.min.js"></script>
 <script>
+const RADAR_REFRESH_MS = 2 * 60 * 1000;
+const WARN_REFRESH_MS = 60 * 1000;
+const PLAYBACK_MS = 900;
+const SITE_LOOKBACK_MINUTES = 120;
+const MAX_SITE_FRAMES = 12;
+const COMPOSITE_OFFSETS = [55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0];
+const COMPOSITE_WMS_URL = 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi';
+const IEM_RADAR_JSON_URL = 'https://mesonet.agron.iastate.edu/json/radar.py';
+const IEM_RIDGE_TILE_URL = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/';
+const WEATHER_GOV_STATIONS_URL = 'https://api.weather.gov/radar/stations?stationType=WSR-88D';
+const WEATHER_GOV_ALERTS_URL = 'https://api.weather.gov/alerts/active?status=actual&message_type=alert';
+const RADAR_OPACITY = 0.72;
 
-const USE_TIMEDIMENSION = false;          //<< flip to true to enable playback
-const REFRESH_MINUTES   = 5;              //radar refresh interval
-const WARN_REFRESH_SEC  = 60;           //warning refresh interval
+const FALLBACK_STATIONS = [
+  {id: 'KTLX', ridgeId: 'TLX', name: 'Norman', lat: 35.3331, lon: -97.2778, elevationFt: 1201},
+  {id: 'KDMX', ridgeId: 'DMX', name: 'Des Moines', lat: 41.7312, lon: -93.7229, elevationFt: 981},
+  {id: 'KBMX', ridgeId: 'BMX', name: 'Birmingham', lat: 33.1718, lon: -86.7697, elevationFt: 645},
+  {id: 'KBUF', ridgeId: 'BUF', name: 'Buffalo', lat: 42.9489, lon: -78.7367, elevationFt: 693},
+  {id: 'KIND', ridgeId: 'IND', name: 'Indianapolis', lat: 39.7075, lon: -86.2803, elevationFt: 790},
+  {id: 'KFFC', ridgeId: 'FFC', name: 'Atlanta', lat: 33.3636, lon: -84.5658, elevationFt: 858},
+  {id: 'KHGX', ridgeId: 'HGX', name: 'Houston', lat: 29.4719, lon: -95.0789, elevationFt: 18},
+  {id: 'KOKX', ridgeId: 'OKX', name: 'Brookhaven', lat: 40.8655, lon: -72.8639, elevationFt: 85}
+];
 
-const map=L.map('map',{center:[39,-98.5],zoom:5,zoomControl:false});
-L.control.zoom({position:'topright'}).addTo(map);
+const radarToggle = document.getElementById('radarToggle');
+const warnToggle = document.getElementById('warnToggle');
+const towerToggle = document.getElementById('towerToggle');
+const sourceSelect = document.getElementById('sourceSelect');
+const productSelect = document.getElementById('productSelect');
+const stationSelect = document.getElementById('stationSelect');
+const timeline = document.getElementById('timeline');
+const playPauseBtn = document.getElementById('playPauseBtn');
+const latestBtn = document.getElementById('latestBtn');
+const timelineLabel = document.getElementById('timelineLabel');
+const statusText = document.getElementById('statusText');
+const legendBox = document.getElementById('legendBox');
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
-  attribution:'&copy; <a href="https://carto.com/">Carto</a>',
-  maxZoom:19
+const map = L.map('map', {center: [39, -98.5], zoom: 5, zoomControl: false});
+L.control.zoom({position: 'topright'}).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://carto.com/">Carto</a>',
+  maxZoom: 19
 }).addTo(map);
 
-let radarLayer;
+const warningLayer = L.layerGroup().addTo(map);
+const towerLayer = L.layerGroup().addTo(map);
 
-function addRadar(){
-  if(radarLayer) map.removeLayer(radarLayer);
-  if(!document.getElementById('radarToggle').checked) return;
+const state = {
+  stations: [],
+  selectedStationId: '',
+  frames: [],
+  frameLayers: [],
+  currentIndex: 0,
+  actualProduct: 'N0Q',
+  playbackTimer: null,
+  radarLoadToken: 0
+};
 
-  if(USE_TIMEDIMENSION){
-    radarLayer=L.timeDimension.layer.wms(
-      L.tileLayer.wms('https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi',{
-        layers:'nexrad-n0q-900913',
-        format:'image/png',
-        transparent:true,
-        opacity:.65
-      }),{updateTimeDimension:true}
-    );
-    radarLayer.addTo(map);
-    // add player control
-    L.control.timeDimension({
-      playerOptions:{buffer:5,minSpeed:1,maxSpeed:10}
-    }).addTo(map);
-  }else{
-    radarLayer=L.tileLayer.wms(
-      'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi',{
-        layers:'nexrad-n0q-900913',
-        format:'image/png',
-        transparent:true,
-        opacity:.65,
-        maxNativeZoom:10
-      }).addTo(map);
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, function (char) {
+    return {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char];
+  });
+}
+
+function normalizeRadarId(id) {
+  return id && id.length === 4 ? id.slice(1) : id;
+}
+
+function truncate(text, maxLength) {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 3) + '...';
+}
+
+function toIemIso(date) {
+  return new Date(date).toISOString().slice(0, 16) + 'Z';
+}
+
+function isoToCompactStamp(iso) {
+  if (iso === '0') return '0';
+  return iso.replace(/[-:TZ]/g, '').slice(0, 12);
+}
+
+function formatLocalDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown time';
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+function metersToFeet(meters) {
+  if (meters === null || meters === undefined) return null;
+  return Math.round(meters * 3.28084);
+}
+
+function setStatus(message) {
+  statusText.textContent = message;
+}
+
+function stopPlayback() {
+  if (state.playbackTimer) {
+    clearInterval(state.playbackTimer);
+    state.playbackTimer = null;
+  }
+  playPauseBtn.textContent = 'Play';
+}
+
+function startPlayback() {
+  if (state.frames.length < 2) return;
+  stopPlayback();
+  state.playbackTimer = setInterval(function () {
+    const nextIndex = (state.currentIndex + 1) % state.frames.length;
+    showFrame(nextIndex);
+  }, PLAYBACK_MS);
+  playPauseBtn.textContent = 'Pause';
+}
+
+function togglePlayback() {
+  if (state.playbackTimer) {
+    stopPlayback();
+    return;
+  }
+  startPlayback();
+}
+
+function updateLegend() {
+  if (productSelect.value === 'velocity' && sourceSelect.value === 'site') {
+    const velocityNote = state.actualProduct === 'N0S'
+      ? 'Loop is using storm-relative velocity because archived N0U frames were unavailable.'
+      : 'Loop is using base velocity imagery.';
+    legendBox.innerHTML = [
+      '<b>Velocity radar</b><br>',
+      '<i style="background:#00ff66"></i>Outbound / away<br>',
+      '<i style="background:#ff4d4d"></i>Inbound / toward<br>',
+      '<i style="background:#777"></i>Low relative speed<br>',
+      escapeHtml(velocityNote)
+    ].join('');
+    return;
+  }
+
+  legendBox.innerHTML = [
+    '<b>Reflectivity intensity</b><br>',
+    '<i style="background:blue"></i>Light<br>',
+    '<i style="background:green"></i>Moderate<br>',
+    '<i style="background:yellow"></i>Heavy<br>',
+    '<i style="background:red"></i>Very Heavy<br>',
+    '<i style="background:white"></i>Extreme<br>',
+    '<i style="background:purple"></i>Hail / Severe'
+  ].join('');
+}
+
+function syncControlState() {
+  if (productSelect.value === 'velocity' && sourceSelect.value !== 'site') {
+    sourceSelect.value = 'site';
+  }
+  stationSelect.disabled = !state.stations.length;
+  playPauseBtn.disabled = state.frames.length < 2;
+  latestBtn.disabled = !state.frames.length || state.currentIndex === state.frames.length - 1;
+  timeline.disabled = state.frames.length < 2;
+  updateLegend();
+}
+
+function getSelectedStation() {
+  return state.stations.find(function (station) {
+    return station.id === state.selectedStationId;
+  }) || null;
+}
+
+function findNearestStation(latlng) {
+  if (!state.stations.length) return null;
+  const lonFactor = Math.cos(latlng.lat * Math.PI / 180);
+  let closestStation = null;
+  let closestDistance = Infinity;
+
+  state.stations.forEach(function (station) {
+    const dLat = station.lat - latlng.lat;
+    const dLon = (station.lon - latlng.lng) * lonFactor;
+    const score = (dLat * dLat) + (dLon * dLon);
+    if (score < closestDistance) {
+      closestDistance = score;
+      closestStation = station;
+    }
+  });
+
+  return closestStation;
+}
+
+function updateStationHighlights() {
+  towerLayer.eachLayer(function (marker) {
+    const isSelected = marker.stationId === state.selectedStationId;
+    marker.setStyle({
+      radius: isSelected ? 7 : 5,
+      color: isSelected ? '#ffcc00' : '#00bcd4',
+      fillColor: isSelected ? '#ffcc00' : '#00bcd4',
+      fillOpacity: 0.9,
+      weight: isSelected ? 2 : 1
+    });
+  });
+}
+
+function syncTowerLayerVisibility() {
+  if (towerToggle.checked) {
+    if (!map.hasLayer(towerLayer)) towerLayer.addTo(map);
+    return;
+  }
+  if (map.hasLayer(towerLayer)) map.removeLayer(towerLayer);
+}
+
+function ensureSelectedStation() {
+  if (state.selectedStationId) return getSelectedStation();
+  const fallback = findNearestStation(map.getCenter());
+  if (!fallback) return null;
+  state.selectedStationId = fallback.id;
+  stationSelect.value = fallback.id;
+  updateStationHighlights();
+  return fallback;
+}
+
+function setSelectedStation(stationId, options) {
+  const settings = Object.assign({
+    recenter: false,
+    switchToSite: false,
+    refresh: true
+  }, options || {});
+
+  const station = state.stations.find(function (entry) {
+    return entry.id === stationId;
+  });
+
+  if (!station) return;
+
+  state.selectedStationId = station.id;
+  stationSelect.value = station.id;
+
+  if (settings.switchToSite) {
+    sourceSelect.value = 'site';
+  }
+
+  updateStationHighlights();
+  syncControlState();
+
+  if (settings.recenter) {
+    map.setView([station.lat, station.lon], Math.max(map.getZoom(), 7));
+  }
+
+  if (settings.refresh) {
+    refreshRadarFrames();
   }
 }
 
-let warnLayer=L.layerGroup().addTo(map);
-function fetchWarnings(){
-  if(!document.getElementById('warnToggle').checked){warnLayer.clearLayers();return;}
-  fetch('https://api.weather.gov/alerts/active')
-    .then(r=>r.json())
-    .then(j=>{
-      warnLayer.clearLayers();
-      L.geoJSON(j,{style:f=>{
-        const e=(f.properties.event||'').toLowerCase();
-        if(e.includes('tornado'))         return {color:'#ff0000',weight:3,fillOpacity:.45};
-        if(e.includes('severe thunder'))  return {color:'#ffa500',weight:2,fillOpacity:.35};
-        if(e.includes('flash flood'))       return {color:'#00ff00',weight:2,fillOpacity:.35};
-        if(e.includes('red flag'))          return {color:'#ff00ff',weight:2,fillOpacity:.35};
-        if(e.includes('winter'))            return {color:'#00ffff',weight:2,fillOpacity:.35};
-        return {color:'#ffff00',weight:1,fillOpacity:.25};
-      },
-      onEachFeature:(f,l)=>{
-        l.bindPopup(`<b>${f.properties.event||''}</b><br>${f.properties.headline||''}`);
-      }}).addTo(warnLayer);
-    })
-    .catch(()=>{/*silent*/});
+function renderStations() {
+  towerLayer.clearLayers();
+
+  state.stations.forEach(function (station) {
+    const marker = L.circleMarker([station.lat, station.lon], {
+      radius: 5,
+      color: '#00bcd4',
+      fillColor: '#00bcd4',
+      fillOpacity: 0.9,
+      weight: 1
+    });
+
+    marker.stationId = station.id;
+    marker.bindPopup([
+      '<b>', escapeHtml(station.id), '</b> - ', escapeHtml(station.name), '<br>',
+      'IEM ID: ', escapeHtml(station.ridgeId), '<br>',
+      'Elevation: ', station.elevationFt ? escapeHtml(station.elevationFt + ' ft') : 'Unknown', '<br>',
+      'Click to load this tower.'
+    ].join(''));
+    marker.on('click', function () {
+      setSelectedStation(station.id, {recenter: true, switchToSite: true});
+    });
+    marker.addTo(towerLayer);
+  });
+
+  updateStationHighlights();
+  syncTowerLayerVisibility();
 }
 
-const rda=[ //id, call, name, lat, lon, elev-ft
-  ['14733','KBUF','Buffalo NY',42.9489,-78.7367,693],
-  ['53819','KFFC','Atlanta GA',33.3636,-84.5658,858],
-  ['93819','KIND','Indianapolis IN',39.7075,-86.2803,790],
-  ['04725','KBGM','Binghamton NY',42.1997,-75.9847,1606],
-  ['26548','PAHG','Anchorage AK',60.7258,-151.3514,242]
-];
-rda.forEach(s=>{
-  L.circleMarker([s[3],s[4]],{radius:5,color:'#00bcd4',fillColor:'#00bcd4',fillOpacity:.8})
-   .addTo(map)
-   .bindPopup(`<b>${s[1]}</b> – ${s[2]}<br>ID: ${s[0]}<br>Elevation: ${s[5]} ft`);
+function populateStationSelect() {
+  stationSelect.innerHTML = '';
+
+  if (!state.stations.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'No towers available';
+    stationSelect.appendChild(option);
+    syncControlState();
+    return;
+  }
+
+  state.stations.forEach(function (station) {
+    const option = document.createElement('option');
+    option.value = station.id;
+    option.textContent = station.id + ' ' + truncate(station.name, 18);
+    option.title = station.name;
+    stationSelect.appendChild(option);
+  });
+
+  if (!state.selectedStationId) {
+    const nearest = findNearestStation(map.getCenter());
+    if (nearest) state.selectedStationId = nearest.id;
+  }
+
+  if (state.selectedStationId) {
+    stationSelect.value = state.selectedStationId;
+  }
+
+  syncControlState();
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, {
+    headers: {
+      'Accept': 'application/geo+json, application/json'
+    }
+  });
+  if (!response.ok) {
+    throw new Error('Request failed with status ' + response.status);
+  }
+  return response.json();
+}
+
+async function loadStations() {
+  try {
+    const data = await fetchJson(WEATHER_GOV_STATIONS_URL);
+    const features = Array.isArray(data.features) ? data.features : [];
+
+    state.stations = features.map(function (feature) {
+      const coords = feature.geometry && feature.geometry.coordinates ? feature.geometry.coordinates : [];
+      const props = feature.properties || {};
+      const id = props.id || '';
+      return {
+        id: id,
+        ridgeId: normalizeRadarId(id),
+        name: props.name || id,
+        lat: coords[1],
+        lon: coords[0],
+        elevationFt: metersToFeet(props.elevation && props.elevation.value)
+      };
+    }).filter(function (station) {
+      return station.id && station.ridgeId && Number.isFinite(station.lat) && Number.isFinite(station.lon);
+    }).sort(function (left, right) {
+      return left.id.localeCompare(right.id);
+    });
+  } catch (error) {
+    state.stations = FALLBACK_STATIONS.slice();
+    setStatus('Tower metadata API unavailable. Using fallback tower list.');
+  }
+
+  populateStationSelect();
+  renderStations();
+  ensureSelectedStation();
+
+  if (sourceSelect.value === 'site' || productSelect.value === 'velocity') {
+    refreshRadarFrames();
+  }
+}
+
+function removeRadarLayers() {
+  state.frameLayers.forEach(function (layer) {
+    if (map.hasLayer(layer)) map.removeLayer(layer);
+  });
+  state.frameLayers = [];
+  state.frames = [];
+  state.currentIndex = 0;
+}
+
+function buildCompositeFrames() {
+  return {
+    actualProduct: 'N0Q',
+    status: 'National composite reflectivity loop ready.',
+    frames: COMPOSITE_OFFSETS.map(function (offset) {
+      return {
+        type: 'composite',
+        offset: offset,
+        label: offset === 0 ? 'Latest composite' : offset + ' min ago',
+        layerName: offset === 0
+          ? 'nexrad-n0q-900913'
+          : 'nexrad-n0q-900913-m' + String(offset).padStart(2, '0') + 'm'
+      };
+    })
+  };
+}
+
+async function fetchSiteScanTimes(radarId, productId) {
+  const now = new Date();
+  const start = new Date(now.getTime() - (SITE_LOOKBACK_MINUTES * 60 * 1000));
+  const url = new URL(IEM_RADAR_JSON_URL);
+  url.searchParams.set('operation', 'list');
+  url.searchParams.set('radar', radarId);
+  url.searchParams.set('product', productId);
+  url.searchParams.set('start', toIemIso(start));
+  url.searchParams.set('end', toIemIso(now));
+  const data = await fetchJson(url.toString());
+  const scans = Array.isArray(data.scans) ? data.scans : [];
+  return scans.map(function (scan) {
+    return scan.ts;
+  }).filter(Boolean);
+}
+
+async function buildSiteFrames(station) {
+  const productPreference = productSelect.value === 'velocity'
+    ? [
+        {id: 'N0U', label: 'base velocity'},
+        {id: 'N0S', label: 'storm-relative velocity'}
+      ]
+    : [
+        {id: 'N0B', label: 'reflectivity'},
+        {id: 'N0Q', label: 'reflectivity'}
+      ];
+
+  let selectedProduct = productPreference[0];
+  let scanTimes = [];
+
+  for (let i = 0; i < productPreference.length; i += 1) {
+    const candidate = productPreference[i];
+    try {
+      scanTimes = await fetchSiteScanTimes(station.ridgeId, candidate.id);
+    } catch (error) {
+      scanTimes = [];
+    }
+    if (scanTimes.length) {
+      selectedProduct = candidate;
+      break;
+    }
+  }
+
+  let status = station.id + ' ' + station.name + ' ' + selectedProduct.label + ' loop ready.';
+
+  if (!scanTimes.length) {
+    status = station.id + ' ' + station.name + ' latest ' + selectedProduct.label + ' frame ready.';
+    return {
+      actualProduct: selectedProduct.id,
+      status: status,
+      frames: [
+        {
+          type: 'site',
+          label: 'Latest frame',
+          url: IEM_RIDGE_TILE_URL + 'ridge::' + station.ridgeId + '-' + selectedProduct.id + '-0/{z}/{x}/{y}.png'
+        }
+      ]
+    };
+  }
+
+  const limitedScans = scanTimes.slice(-MAX_SITE_FRAMES);
+
+  if (productSelect.value === 'velocity' && selectedProduct.id !== 'N0U') {
+    status = station.id + ' ' + station.name + ' base velocity requested; using storm-relative velocity because archived N0U frames are unavailable.';
+  }
+
+  return {
+    actualProduct: selectedProduct.id,
+    status: status,
+    frames: limitedScans.map(function (scanTime) {
+      return {
+        type: 'site',
+        label: formatLocalDateTime(scanTime),
+        url: IEM_RIDGE_TILE_URL + 'ridge::' + station.ridgeId + '-' + selectedProduct.id + '-' + isoToCompactStamp(scanTime) + '/{z}/{x}/{y}.png'
+      };
+    })
+  };
+}
+
+function buildLayerForFrame(frame) {
+  if (frame.type === 'composite') {
+    return L.tileLayer.wms(COMPOSITE_WMS_URL, {
+      layers: frame.layerName,
+      format: 'image/png',
+      transparent: true,
+      opacity: 0,
+      maxNativeZoom: 10
+    });
+  }
+
+  return L.tileLayer(frame.url, {
+    opacity: 0,
+    maxZoom: 19,
+    crossOrigin: true
+  });
+}
+
+function showFrame(index) {
+  if (!state.frames.length) return;
+
+  const clampedIndex = Math.max(0, Math.min(index, state.frames.length - 1));
+  state.currentIndex = clampedIndex;
+
+  state.frameLayers.forEach(function (layer, layerIndex) {
+    layer.setOpacity(layerIndex === clampedIndex ? RADAR_OPACITY : 0);
+    if (layerIndex === clampedIndex && layer.bringToFront) {
+      layer.bringToFront();
+    }
+  });
+
+  timeline.value = String(clampedIndex);
+  timelineLabel.textContent = (clampedIndex + 1) + '/' + state.frames.length + ' - ' + state.frames[clampedIndex].label;
+  syncControlState();
+}
+
+async function refreshRadarFrames(options) {
+  const settings = Object.assign({
+    preservePosition: false,
+    resumePlayback: false
+  }, options || {});
+
+  syncControlState();
+
+  const previousDistanceFromEnd = settings.preservePosition && state.frames.length
+    ? (state.frames.length - 1 - state.currentIndex)
+    : 0;
+
+  stopPlayback();
+
+  if (!radarToggle.checked) {
+    removeRadarLayers();
+    timeline.max = 0;
+    timeline.value = 0;
+    timelineLabel.textContent = 'Radar layer hidden.';
+    setStatus('Radar layer hidden.');
+    syncControlState();
+    return;
+  }
+
+  const token = ++state.radarLoadToken;
+  setStatus('Loading radar frames...');
+  timelineLabel.textContent = 'Loading radar frames...';
+
+  try {
+    let radarData;
+
+    if (sourceSelect.value === 'site') {
+      const station = ensureSelectedStation();
+      if (!station) {
+        throw new Error('No radar towers are available yet.');
+      }
+      radarData = await buildSiteFrames(station);
+    } else {
+      radarData = buildCompositeFrames();
+    }
+
+    if (token !== state.radarLoadToken) return;
+
+    removeRadarLayers();
+    state.actualProduct = radarData.actualProduct;
+    state.frames = radarData.frames;
+    state.frameLayers = radarData.frames.map(function (frame) {
+      const layer = buildLayerForFrame(frame);
+      layer.addTo(map);
+      return layer;
+    });
+
+    timeline.min = 0;
+    timeline.max = Math.max(0, state.frames.length - 1);
+    timeline.step = 1;
+
+    const nextIndex = settings.preservePosition && state.frames.length
+      ? Math.max(0, state.frames.length - 1 - Math.min(previousDistanceFromEnd, state.frames.length - 1))
+      : Math.max(0, state.frames.length - 1);
+
+    showFrame(nextIndex);
+    setStatus(radarData.status);
+
+    if (settings.resumePlayback && state.frames.length > 1) {
+      startPlayback();
+    }
+  } catch (error) {
+    if (token !== state.radarLoadToken) return;
+    removeRadarLayers();
+    timeline.max = 0;
+    timeline.value = 0;
+    timelineLabel.textContent = 'Unable to load radar frames.';
+    setStatus('Radar data is unavailable right now.');
+    syncControlState();
+  }
+}
+
+function getAlertContext(properties) {
+  const parameters = properties && properties.parameters ? properties.parameters : {};
+  const headlineParameters = Array.isArray(parameters.NWSheadline) ? parameters.NWSheadline.join(' ') : '';
+  return [
+    properties && properties.event ? properties.event : '',
+    properties && properties.headline ? properties.headline : '',
+    properties && properties.description ? properties.description : '',
+    headlineParameters
+  ].join(' ').toLowerCase();
+}
+
+function shouldRenderAlert(feature) {
+  const properties = feature.properties || {};
+  const event = (properties.event || '').toLowerCase();
+  const context = getAlertContext(properties);
+  return Boolean(feature.geometry) && (event.includes('warning') || context.includes('tornado emergency'));
+}
+
+function getAlertStyle(feature) {
+  const properties = feature.properties || {};
+  const event = (properties.event || '').toLowerCase();
+  const context = getAlertContext(properties);
+
+  if (context.includes('tornado emergency')) {
+    return {color: '#b100ff', weight: 3, fillColor: '#ff00ff', fillOpacity: 0.4};
+  }
+  if (event.includes('hurricane')) {
+    return {color: '#ff1493', weight: 3, fillColor: '#ff1493', fillOpacity: 0.3};
+  }
+  if (event.includes('tornado')) {
+    return {color: '#ff0000', weight: 3, fillColor: '#ff0000', fillOpacity: 0.32};
+  }
+  if (event.includes('snow squall')) {
+    return {color: '#7fefff', weight: 2, fillColor: '#ffffff', fillOpacity: 0.2};
+  }
+  if (event.includes('flash flood')) {
+    return {color: '#00ff66', weight: 2, fillColor: '#00ff66', fillOpacity: 0.28};
+  }
+  if (event.includes('flood warning')) {
+    return {color: '#00c853', weight: 2, fillColor: '#00c853', fillOpacity: 0.22};
+  }
+  if (event.includes('severe thunderstorm')) {
+    return {color: '#ffa500', weight: 2, fillColor: '#ffa500', fillOpacity: 0.28};
+  }
+  if (event.includes('winter')) {
+    return {color: '#00ffff', weight: 2, fillColor: '#00ffff', fillOpacity: 0.24};
+  }
+  return {color: '#ffff00', weight: 1, fillColor: '#ffff00', fillOpacity: 0.18};
+}
+
+function getAlertDisplayName(properties) {
+  return getAlertContext(properties).includes('tornado emergency')
+    ? 'Tornado Emergency'
+    : (properties.event || 'Warning');
+}
+
+async function fetchWarnings() {
+  if (!warnToggle.checked) {
+    warningLayer.clearLayers();
+    return;
+  }
+
+  try {
+    const data = await fetchJson(WEATHER_GOV_ALERTS_URL);
+    const features = Array.isArray(data.features) ? data.features.filter(shouldRenderAlert) : [];
+
+    warningLayer.clearLayers();
+    L.geoJSON(features, {
+      style: getAlertStyle,
+      onEachFeature: function (feature, layer) {
+        const properties = feature.properties || {};
+        const popupHtml = [
+          '<b>', escapeHtml(getAlertDisplayName(properties)), '</b><br>',
+          escapeHtml(properties.headline || ''), '<br>',
+          escapeHtml(properties.areaDesc || ''), '<br>',
+          'Sent: ', escapeHtml(formatLocalDateTime(properties.sent || properties.effective || properties.onset || '')), '<br>',
+          'Ends: ', escapeHtml(formatLocalDateTime(properties.ends || properties.expires || ''))
+        ].join('');
+        layer.bindPopup(popupHtml);
+      }
+    }).addTo(warningLayer);
+  } catch (error) {
+    warningLayer.clearLayers();
+  }
+}
+
+radarToggle.addEventListener('change', function () {
+  if (!radarToggle.checked) {
+    stopPlayback();
+    removeRadarLayers();
+    timeline.max = 0;
+    timeline.value = 0;
+    timelineLabel.textContent = 'Radar layer hidden.';
+    setStatus('Radar layer hidden.');
+    syncControlState();
+    return;
+  }
+  refreshRadarFrames();
 });
 
-document.getElementById('radarToggle').addEventListener('change',addRadar);
-document.getElementById('warnToggle').addEventListener('change',fetchWarnings);
+warnToggle.addEventListener('change', fetchWarnings);
+towerToggle.addEventListener('change', syncTowerLayerVisibility);
 
-addRadar();
+sourceSelect.addEventListener('change', function () {
+  syncControlState();
+  refreshRadarFrames();
+});
+
+productSelect.addEventListener('change', function () {
+  syncControlState();
+  refreshRadarFrames();
+});
+
+stationSelect.addEventListener('change', function () {
+  if (!stationSelect.value) return;
+  setSelectedStation(stationSelect.value, {recenter: true, switchToSite: true});
+});
+
+playPauseBtn.addEventListener('click', togglePlayback);
+
+latestBtn.addEventListener('click', function () {
+  stopPlayback();
+  showFrame(state.frames.length - 1);
+});
+
+timeline.addEventListener('input', function () {
+  stopPlayback();
+  showFrame(Number(timeline.value));
+});
+
+syncControlState();
+updateLegend();
+loadStations();
 fetchWarnings();
-setInterval(addRadar,REFRESH_MINUTES*60*1000);
-setInterval(fetchWarnings,WARN_REFRESH_SEC*1000);
+refreshRadarFrames();
+
+setInterval(function () {
+  refreshRadarFrames({
+    preservePosition: true,
+    resumePlayback: Boolean(state.playbackTimer)
+  });
+}, RADAR_REFRESH_MS);
+
+setInterval(fetchWarnings, WARN_REFRESH_MS);
 </script>
 </body>
 </html>
