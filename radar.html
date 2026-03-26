@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>VortexWatch Radar</title>
+<title>VortexWatch Simple Radar</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.timedimension@1.1.1/dist/leaflet.timedimension.control.min.css">
@@ -99,6 +99,9 @@ const PLAYBACK_MS = 900;
 const SITE_LOOKBACK_MINUTES = 120;
 const MAX_SITE_FRAMES = 12;
 const COMPOSITE_OFFSETS = [55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0];
+const RADAR_CACHE_TTL_MS = 2 * 60 * 1000;
+const FRAME_PRELOAD_DELAY_MS = 150;
+const LOAD_SWAP_TIMEOUT_MS = 1800;
 const COMPOSITE_WMS_URL = 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi';
 const IEM_RADAR_JSON_URL = 'https://mesonet.agron.iastate.edu/json/radar.py';
 const IEM_RIDGE_TILE_URL = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/';
@@ -149,7 +152,12 @@ const state = {
   currentIndex: 0,
   actualProduct: 'N0Q',
   playbackTimer: null,
-  radarLoadToken: 0
+  radarLoadToken: 0,
+  frameActivationToken: 0,
+  radarDataCache: new Map(),
+  layerCache: new Map(),
+  preloadTimer: null,
+  isRadarBusy: false
 };
 
 function escapeHtml(value) {
@@ -201,6 +209,17 @@ function metersToFeet(meters) {
 
 function setStatus(message) {
   statusText.textContent = message;
+}
+
+function setRadarBusy(isBusy, timelineMessage, statusMessage) {
+  state.isRadarBusy = isBusy;
+  if (timelineMessage) {
+    timelineLabel.textContent = (isBusy ? '⌛ ' : '') + timelineMessage;
+  }
+  if (statusMessage) {
+    setStatus((isBusy ? '⌛ ' : '') + statusMessage);
+  }
+  syncControlState();
 }
 
 function stopPlayback() {
@@ -259,10 +278,12 @@ function syncControlState() {
   if (productSelect.value === 'velocity' && sourceSelect.value !== 'site') {
     sourceSelect.value = 'site';
   }
-  stationSelect.disabled = !state.stations.length;
-  playPauseBtn.disabled = state.frames.length < 2;
-  latestBtn.disabled = !state.frames.length || state.currentIndex === state.frames.length - 1;
-  timeline.disabled = state.frames.length < 2;
+  stationSelect.disabled = !state.stations.length || state.isRadarBusy;
+  sourceSelect.disabled = state.isRadarBusy;
+  productSelect.disabled = state.isRadarBusy;
+  playPauseBtn.disabled = state.isRadarBusy || state.frames.length < 2;
+  latestBtn.disabled = state.isRadarBusy || !state.frames.length || state.currentIndex === state.frames.length - 1;
+  timeline.disabled = state.isRadarBusy || state.frames.length < 2;
   updateLegend();
 }
 
@@ -464,12 +485,39 @@ async function loadStations() {
 }
 
 function removeRadarLayers() {
+  if (state.preloadTimer) {
+    clearTimeout(state.preloadTimer);
+    state.preloadTimer = null;
+  }
   state.frameLayers.forEach(function (layer) {
-    if (map.hasLayer(layer)) map.removeLayer(layer);
+    if (layer && map.hasLayer(layer)) map.removeLayer(layer);
   });
   state.frameLayers = [];
   state.frames = [];
   state.currentIndex = 0;
+}
+
+function getRadarDataCacheKey() {
+  if (sourceSelect.value === 'composite') return 'composite:reflectivity';
+  const station = ensureSelectedStation();
+  return station ? 'site:' + station.ridgeId + ':' + productSelect.value : 'site:none:' + productSelect.value;
+}
+
+function getCachedRadarData(cacheKey) {
+  const entry = state.radarDataCache.get(cacheKey);
+  if (!entry) return null;
+  if ((Date.now() - entry.cachedAt) > RADAR_CACHE_TTL_MS) {
+    state.radarDataCache.delete(cacheKey);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCachedRadarData(cacheKey, data) {
+  state.radarDataCache.set(cacheKey, {
+    cachedAt: Date.now(),
+    data: data
+  });
 }
 
 function buildCompositeFrames() {
@@ -478,6 +526,7 @@ function buildCompositeFrames() {
     status: 'National composite reflectivity loop ready.',
     frames: COMPOSITE_OFFSETS.map(function (offset) {
       return {
+        key: 'composite:' + (offset === 0 ? 'latest' : 'm' + String(offset).padStart(2, '0')),
         type: 'composite',
         offset: offset,
         label: offset === 0 ? 'Latest composite' : offset + ' min ago',
@@ -541,6 +590,7 @@ async function buildSiteFrames(station) {
       status: status,
       frames: [
         {
+          key: 'site:' + station.ridgeId + ':' + selectedProduct.id + ':latest',
           type: 'site',
           label: 'Latest frame',
           url: IEM_RIDGE_TILE_URL + 'ridge::' + station.ridgeId + '-' + selectedProduct.id + '-0/{z}/{x}/{y}.png'
@@ -560,6 +610,7 @@ async function buildSiteFrames(station) {
     status: status,
     frames: limitedScans.map(function (scanTime) {
       return {
+        key: 'site:' + station.ridgeId + ':' + selectedProduct.id + ':' + isoToCompactStamp(scanTime),
         type: 'site',
         label: formatLocalDateTime(scanTime),
         url: IEM_RIDGE_TILE_URL + 'ridge::' + station.ridgeId + '-' + selectedProduct.id + '-' + isoToCompactStamp(scanTime) + '/{z}/{x}/{y}.png'
@@ -569,45 +620,136 @@ async function buildSiteFrames(station) {
 }
 
 function buildLayerForFrame(frame) {
+  const cachedLayer = state.layerCache.get(frame.key);
+  if (cachedLayer) return cachedLayer;
+
+  let layer;
   if (frame.type === 'composite') {
-    return L.tileLayer.wms(COMPOSITE_WMS_URL, {
+    layer = L.tileLayer.wms(COMPOSITE_WMS_URL, {
       layers: frame.layerName,
       format: 'image/png',
       transparent: true,
       opacity: 0,
       maxNativeZoom: 10
     });
+  } else {
+    layer = L.tileLayer(frame.url, {
+      opacity: 0,
+      maxZoom: 19,
+      crossOrigin: true
+    });
   }
 
-  return L.tileLayer(frame.url, {
-    opacity: 0,
-    maxZoom: 19,
-    crossOrigin: true
+  state.layerCache.set(frame.key, layer);
+  return layer;
+}
+
+function ensureFrameLayer(index) {
+  if (index < 0 || index >= state.frames.length) return null;
+  if (state.frameLayers[index]) return state.frameLayers[index];
+  const layer = buildLayerForFrame(state.frames[index]);
+  state.frameLayers[index] = layer;
+  return layer;
+}
+
+function waitForLayerLoad(layer) {
+  return new Promise(function (resolve) {
+    let finished = false;
+
+    function done() {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeoutId);
+      layer.off('load', done);
+      layer.off('tileerror', done);
+      resolve();
+    }
+
+    const timeoutId = setTimeout(done, LOAD_SWAP_TIMEOUT_MS);
+    layer.once('load', done);
+    layer.once('tileerror', done);
   });
 }
 
-function showFrame(index) {
+function scheduleFramePreload(centerIndex) {
+  if (state.preloadTimer) clearTimeout(state.preloadTimer);
+  state.preloadTimer = setTimeout(function () {
+    [centerIndex - 1, centerIndex + 1, centerIndex - 2, centerIndex + 2].forEach(function (index) {
+      if (index < 0 || index >= state.frames.length) return;
+      const layer = ensureFrameLayer(index);
+      if (!layer) return;
+      if (!map.hasLayer(layer)) {
+        layer.setOpacity(0);
+        layer.addTo(map);
+      }
+    });
+  }, FRAME_PRELOAD_DELAY_MS);
+}
+
+async function activateFrame(index, options) {
   if (!state.frames.length) return;
 
+  const settings = Object.assign({
+    oldLayers: [],
+    skipBusyState: false
+  }, options || {});
   const clampedIndex = Math.max(0, Math.min(index, state.frames.length - 1));
-  state.currentIndex = clampedIndex;
+  const frame = state.frames[clampedIndex];
+  const layer = ensureFrameLayer(clampedIndex);
+  const activationToken = ++state.frameActivationToken;
+  const layerAlreadyPresent = map.hasLayer(layer);
 
-  state.frameLayers.forEach(function (layer, layerIndex) {
-    layer.setOpacity(layerIndex === clampedIndex ? RADAR_OPACITY : 0);
-    if (layerIndex === clampedIndex && layer.bringToFront) {
-      layer.bringToFront();
+  state.currentIndex = clampedIndex;
+  timeline.value = String(clampedIndex);
+  timelineLabel.textContent = (clampedIndex + 1) + '/' + state.frames.length + ' - ' + frame.label;
+
+  if (!layerAlreadyPresent) {
+    layer.setOpacity(0);
+    layer.addTo(map);
+  }
+
+  if (!settings.skipBusyState && !layerAlreadyPresent) {
+    setRadarBusy(true, 'Loading ' + frame.label + '...', 'Loading radar frame...');
+  }
+
+  if (!layerAlreadyPresent) {
+    await waitForLayerLoad(layer);
+    if (activationToken !== state.frameActivationToken) return;
+  }
+
+  state.frameLayers.forEach(function (entry, layerIndex) {
+    if (!entry || !map.hasLayer(entry)) return;
+    entry.setOpacity(layerIndex === clampedIndex ? RADAR_OPACITY : 0);
+  });
+
+  if (layer.bringToFront) layer.bringToFront();
+
+  settings.oldLayers.forEach(function (oldLayer) {
+    if (oldLayer !== layer && map.hasLayer(oldLayer)) {
+      map.removeLayer(oldLayer);
     }
   });
 
   timeline.value = String(clampedIndex);
-  timelineLabel.textContent = (clampedIndex + 1) + '/' + state.frames.length + ' - ' + state.frames[clampedIndex].label;
-  syncControlState();
+  timelineLabel.textContent = (clampedIndex + 1) + '/' + state.frames.length + ' - ' + frame.label;
+  scheduleFramePreload(clampedIndex);
+  if (!settings.skipBusyState) {
+    setRadarBusy(false);
+  } else {
+    syncControlState();
+  }
+}
+
+function showFrame(index) {
+  if (!state.frames.length) return;
+  activateFrame(index, {oldLayers: [], skipBusyState: true});
 }
 
 async function refreshRadarFrames(options) {
   const settings = Object.assign({
     preservePosition: false,
-    resumePlayback: false
+    resumePlayback: false,
+    useCache: true
   }, options || {});
 
   syncControlState();
@@ -629,32 +771,36 @@ async function refreshRadarFrames(options) {
   }
 
   const token = ++state.radarLoadToken;
-  setStatus('Loading radar frames...');
-  timelineLabel.textContent = 'Loading radar frames...';
+  const oldLayers = state.frameLayers.filter(Boolean).filter(function (layer) {
+    return map.hasLayer(layer);
+  });
+  setRadarBusy(true, 'Loading radar frames...', 'Loading radar frames...');
 
   try {
     let radarData;
+    const cacheKey = getRadarDataCacheKey();
+    const cachedData = settings.useCache ? getCachedRadarData(cacheKey) : null;
 
-    if (sourceSelect.value === 'site') {
-      const station = ensureSelectedStation();
-      if (!station) {
-        throw new Error('No radar towers are available yet.');
-      }
-      radarData = await buildSiteFrames(station);
+    if (cachedData) {
+      radarData = cachedData;
     } else {
-      radarData = buildCompositeFrames();
+      if (sourceSelect.value === 'site') {
+        const station = ensureSelectedStation();
+        if (!station) {
+          throw new Error('No radar towers are available yet.');
+        }
+        radarData = await buildSiteFrames(station);
+      } else {
+        radarData = buildCompositeFrames();
+      }
+      setCachedRadarData(cacheKey, radarData);
     }
 
     if (token !== state.radarLoadToken) return;
 
-    removeRadarLayers();
     state.actualProduct = radarData.actualProduct;
     state.frames = radarData.frames;
-    state.frameLayers = radarData.frames.map(function (frame) {
-      const layer = buildLayerForFrame(frame);
-      layer.addTo(map);
-      return layer;
-    });
+    state.frameLayers = new Array(radarData.frames.length).fill(null);
 
     timeline.min = 0;
     timeline.max = Math.max(0, state.frames.length - 1);
@@ -664,7 +810,8 @@ async function refreshRadarFrames(options) {
       ? Math.max(0, state.frames.length - 1 - Math.min(previousDistanceFromEnd, state.frames.length - 1))
       : Math.max(0, state.frames.length - 1);
 
-    showFrame(nextIndex);
+    await activateFrame(nextIndex, {oldLayers: oldLayers});
+    if (token !== state.radarLoadToken) return;
     setStatus(radarData.status);
 
     if (settings.resumePlayback && state.frames.length > 1) {
@@ -677,7 +824,7 @@ async function refreshRadarFrames(options) {
     timeline.value = 0;
     timelineLabel.textContent = 'Unable to load radar frames.';
     setStatus('Radar data is unavailable right now.');
-    syncControlState();
+    setRadarBusy(false);
   }
 }
 
